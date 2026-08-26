@@ -33,7 +33,7 @@ Gross Sales = sales_amount
 Net Sales = sales_amount - order_item_discount
           = order_item_total
 
-Profit Margin = order_profit_per_order / order_item_total
+Item Profit Ratio = order_profit_per_order / NULLIF(order_item_total, 0)
 ```
 
 ### 2.2. Discount-rate limitation
@@ -105,3 +105,56 @@ SUM(order_profit_per_order)
 
 Lợi nhuận âm là giá trị hợp lệ trong dataset. Nó cho thấy một dòng sản phẩm hoặc đơn hàng bị lỗ sau khi xét doanh thu thuần và chi phí được phản ánh trong dữ liệu; không tự động coi đó là lỗi dữ liệu.
 
+## 5. Reporting-scope financial sensitivity
+
+### 5.1. Why the scope was reviewed
+
+Data-quality and delivery validation identified 2,855 orders with
+`CANCELED` or `SUSPECTED_FRAUD` status. These orders correspond to
+`Shipping canceled`.
+
+Although these orders contain recorded net sales and profit, the dataset
+does not provide accounting rules confirming whether the amounts were
+recognized after cancellation.
+
+The project therefore compares two scopes.
+
+### 5.2. Scope comparison
+
+| Metric | Scope A: All recorded orders | Scope B: Non-canceled orders | Difference |
+|---|---:|---:|---:|
+| Orders | 65,752 | 62,897 | -2,855 |
+| Net Sales | 33,054,402.04 | 31,644,664.75 | -1,409,737.29 |
+| Profit | 3,966,902.97 | 3,806,420.63 | -160,482.34 |
+| Profit Margin | 12.00% | 12.03% | +0.03 percentage point |
+
+### 5.3. Interpretation
+
+Orders with `CANCELED` and `SUSPECTED_FRAUD` status account for:
+
+- 4.34% of all recorded orders;
+- 4.26% of recorded net sales;
+- 4.05% of recorded profit.
+
+Excluding these orders reduces total net sales and profit by
+approximately 4%, while overall Profit Margin changes only slightly
+from 12.00% to 12.03%.
+
+This means the all-status financial results are not completely invalid.
+However, they represent all recorded transactions rather than
+non-canceled business performance.
+
+Stable total Profit Margin does not guarantee that monthly trends,
+category rankings, product rankings or customer results remain stable.
+Those breakdowns must be revalidated under Scope B.
+
+### 5.4. Analytical decision
+
+- Scope A is retained for source reconciliation, order-status analysis
+  and financial sensitivity checks.
+- Scope B is used as the primary scope for non-canceled business
+  performance.
+- Financial values are described as `recorded net sales` and
+  `recorded profit`.
+- Scope B is not described as completed orders or recognized revenue
+  because unresolved statuses remain included.

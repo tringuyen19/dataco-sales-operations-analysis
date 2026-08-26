@@ -95,7 +95,7 @@ SELECT
             sales_per_customer - order_item_total
         )
     ) AS maximum_difference
-FROM stg_dataco sd
+FROM stg_dataco sd;
 
 /* 5. Compare benefit_per_order vs order_profit_per_order */
 SELECT
@@ -141,6 +141,59 @@ SELECT
     MAX(order_profit_per_order) AS max_profit
 FROM stg_dataco
 GROUP BY order_id
-HAVING COUNT(*) > 1 
-AND COUNT(DISTINCT order_profit_per_order) != count(*)
-ORDER BY number_of_lines DESC	
+HAVING COUNT(*) > 1
+   AND COUNT(DISTINCT order_profit_per_order) > 1
+ORDER BY number_of_lines DESC, order_id;	
+
+/* 8. Financial sensitivity by reporting scope */
+WITH scope_summary AS (
+    SELECT
+        'Scope A - All recorded orders' AS reporting_scope,
+
+        COUNT(DISTINCT order_id) AS orders,
+        SUM(order_item_total) AS net_sales,
+        SUM(order_profit_per_order) AS profit
+    FROM stg_dataco
+
+    UNION ALL
+
+    SELECT
+        'Scope B - Non-canceled orders' AS reporting_scope,
+        COUNT(DISTINCT order_id) AS orders,
+        SUM(order_item_total) AS net_sales,
+        SUM(order_profit_per_order) AS profit
+    FROM stg_dataco
+    WHERE order_status IS DISTINCT FROM 'CANCELED'
+      AND order_status IS DISTINCT FROM 'SUSPECTED_FRAUD'
+)
+
+SELECT
+    reporting_scope,
+    orders,
+    net_sales,
+    profit,
+
+    ROUND(
+        (100.0 * profit
+            / NULLIF(net_sales, 0)
+        ), 2
+    ) AS profit_margin_pct
+FROM scope_summary
+ORDER BY reporting_scope;
+
+/* 9. Financial contribution of excluded orders */
+SELECT
+    COUNT(DISTINCT order_id) AS excluded_orders,
+    SUM(order_item_total) AS excluded_net_sales,
+    SUM(order_profit_per_order) AS excluded_profit,
+
+    ROUND(
+        ( 100.0 * SUM(order_profit_per_order)
+            / NULLIF(SUM(order_item_total), 0)
+        ), 2
+    ) AS excluded_profit_margin_pct
+FROM stg_dataco
+WHERE order_status IN (
+    'CANCELED',
+    'SUSPECTED_FRAUD'
+);
