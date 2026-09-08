@@ -4,3 +4,4 @@
 
 # If you want to allow specific CSVs, you can negate patterns, e.g.:
 # !/data/keep-this.csv
+/docs/10_dashboard_requirements_and_wireframe.md
