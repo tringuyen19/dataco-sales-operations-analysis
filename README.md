@@ -6,8 +6,6 @@ Phân tích đi từ kiểm tra dữ liệu, xác định chỉ số, phân rã 
 
 ## Bài toán và cách tiếp cận
 
-Doanh thu tổng chưa đủ để đánh giá hoạt động. Một nhóm có thể tạo doanh thu lớn nhưng biên thấp; một phương thức có tỷ lệ giao trễ cao nhưng thực tế vẫn nhanh hơn phương thức khác.
-
 | Câu hỏi kinh doanh | Cách phân tích | Quyết định được hỗ trợ |
 |---|---|---|
 | Doanh thu đổi do số đơn hay giá trị đơn? | Phân rã số đơn × AOV, kiểm tra số ngày và cơ cấu sản phẩm | Chọn hướng điều tra biến động |
@@ -168,8 +166,6 @@ Luồng xử lý: **CSV → staging → kiểm tra chất lượng/tài chính �
 **Đọc nhanh:** README → [kết luận](docs/09_final_insights_recommendations.md) → [hướng dẫn trình bày](docs/12_analysis_and_presentation_guide.md).
 
 **Chạy lại:** theo [hướng dẫn dữ liệu](data/README.md), tạo staging bằng SQL 00, nạp CSV rồi chạy SQL 01–08 theo thứ tự. So sánh kết quả với mốc toàn kỳ trước khi làm mới Power BI.
-
-CSV không được đưa vào Git. Trong workspace hiện có dữ liệu cục bộ; người tải repository cần lấy nguồn theo hướng dẫn.
 
 | Nội dung | Tài liệu |
 |---|---|
