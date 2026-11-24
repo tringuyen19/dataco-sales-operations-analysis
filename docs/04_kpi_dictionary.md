@@ -1,126 +1,86 @@
-# KPI Dictionary
+# Từ điển chỉ số
 
-## 1. Purpose
+## 1. Phạm vi, đơn vị và cách đọc
 
-This KPI framework supports the Sales & Operations Manager in monitoring
-commercial performance, profitability and delivery performance.
+Mặc định dùng **B**: loại `CANCELED` và `SUSPECTED_FRAUD`. **A** giữ toàn bộ trạng thái để đối soát. B chưa phải tập đơn đã hoàn tất. Thời gian quan sát: 01/01/2015–31/01/2018.
 
-The dataset is recorded at order-item grain. KPI calculations must therefore
-use the correct analysis view and reporting scope to avoid double counting or
-including canceled shipments in the primary business baseline.
+Các nhãn tiếng Anh trong ngoặc tương ứng với nhãn trên Power BI. Tiền dùng đơn vị nguồn chưa xác minh; không gắn ký hiệu tiền tệ. Số tham chiếu áp dụng toàn kỳ, không thêm bộ lọc, sau làm tròn tiền từng dòng về 2 chữ số.
 
-## 2. Reporting scopes
+## 2. Chỉ số kinh doanh chính
 
-### Scope A — All recorded orders
+| Chỉ số | Ý nghĩa và công thức | Nguồn B | Mốc toàn kỳ |
+|---|---|---|---:|
+| Số đơn (Total Orders) | `COUNT(*)` trên bảng một dòng/đơn | Bảng đơn | 62,897 |
+| Số khách (Total Customers) | `COUNT(DISTINCT customer_id)` | Bảng đơn | 20,261 |
+| Số dòng sản phẩm | `COUNT(*)` trên bảng một dòng/sản phẩm trong đơn | Bảng dòng | 172,765 |
+| Số lượng bán (Units Sold) | `SUM(quantity)` | Bảng dòng | 367,591 |
+| Doanh thu trước giảm giá (Gross Sales) | `SUM(gross_sales)` | Bảng dòng | 35,214,428.98 |
+| Tiền giảm giá (Total Discount) | `SUM(discount_amount)` | Bảng dòng | 3,569,808.32 |
+| Doanh thu thuần (Net Sales) | `SUM(net_sales)` | Bảng đơn hoặc bảng dòng | 31,644,664.75 |
+| Lợi nhuận (Total Profit) | `SUM(order_profit)` hoặc `SUM(line_profit)` theo cấp dữ liệu | Bảng đơn hoặc bảng dòng | 3,806,420.63 |
+| Biên lợi nhuận (Profit Margin) | Tổng lợi nhuận / tổng doanh thu thuần | Cùng phạm vi và bộ lọc | 12.03% |
+| Giá trị trung bình mỗi đơn (AOV) | Tổng doanh thu thuần / số đơn | Bảng đơn | 503.12 |
+| Tỷ lệ giảm giá (Discount Rate) | Tổng tiền giảm giá / tổng doanh thu trước giảm giá | Bảng dòng | 10.14% |
 
-- Includes all order statuses.
-- Contains 65,752 recorded orders.
-- Uses `vw_order_analysis` and `vw_order_item_analysis`.
-- Used for source reconciliation, order-status analysis, cancellation analysis
-  and sensitivity checks.
+“Bảng đơn” là `vw_order_analysis_non_canceled`; “bảng dòng” là `vw_order_item_analysis_non_canceled`. Khi tính số đơn trên bảng dòng, dùng `COUNT(DISTINCT order_id)`.
 
-### Scope B — Non-canceled orders
+Đơn hàng có thể chứa nhiều danh mục. Do đó **không cộng số đơn từng danh mục để suy ra tổng số đơn**. Doanh thu và lợi nhuận theo các danh mục không chồng lặp có thể cộng về tổng.
 
-- Excludes `CANCELED` and `SUSPECTED_FRAUD`.
-- Contains 62,897 orders.
-- Uses `vw_order_analysis_non_canceled` and
-  `vw_order_item_analysis_non_canceled`.
-- Used as the default scope for primary business and delivery analysis.
+## 3. Chỉ số giao hàng
 
-Scope B is called `non-canceled orders`, not `completed orders`, because other
-unresolved statuses remain included. Recorded financial values are not assumed
-to be recognized accounting revenue.
+| Chỉ số | Công thức trên bảng đơn B | Mốc toàn kỳ |
+|---|---|---:|
+| Đơn trễ (Late Orders) | Số đơn có `late_delivery_risk = 1` | 36,048 |
+| Đơn đủ điều kiện đánh giá (Evaluable Orders) | Số đơn có `late_delivery_risk IN (0,1)` | 62,897 |
+| Tỷ lệ trễ (Late Delivery Rate) | Đơn trễ / đơn đủ điều kiện | 57.31% |
+| Số ngày thực tế trung bình | `AVG(actual_shipping_days)` | 3.50 |
+| Số ngày dự kiến trung bình | `AVG(scheduled_shipping_days)` | 2.94 |
+| Chênh lệch ngày trung bình | `AVG(actual_shipping_days - scheduled_shipping_days)` | 0.57 |
 
-## 3. KPI classification
+Phân biệt ba mẫu số: tỷ lệ trễ **trong phương thức** chia cho số đơn của phương thức; tỷ trọng phương thức **trong nhóm trễ** chia cho toàn bộ đơn trễ; tỷ trọng khách mua lặp lại chia cho số khách. Chúng trả lời các câu hỏi khác nhau.
 
-### Recorded and reconciliation KPIs
+Chênh lệch ngày trung bình có thể âm vì giao sớm bù trừ giao trễ. Không dùng chỉ số này một mình để đánh giá dịch vụ. Chỉ dùng các dòng có đủ hai trường ngày khi tính chênh lệch. Các giá trị hiển thị được làm tròn riêng nên 3.50 − 2.94 có thể khác 0.57.
 
-1. Recorded Orders
-2. Recorded Net Sales
-3. Recorded Total Profit
-4. Cancellation Rate
+## 4. Chỉ số khách hàng và mức tập trung
 
-### Primary outcome KPIs
+Khách mua lặp lại là khách có từ hai đơn B trở lên **trong khoảng quan sát đang xét**. Phải tổng hợp một dòng/khách trước khi đếm.
 
-1. Core Orders
-2. Core Net Sales
-3. Core Total Profit
-4. Profit Margin
+| Chỉ số | Công thức | Mốc toàn kỳ |
+|---|---|---:|
+| Khách mua lặp lại (Repeat Customers) | Số khách có ít nhất 2 đơn | 11,644 |
+| Tỷ lệ khách mua lặp lại | Khách mua lặp lại / toàn bộ khách | 57.47% |
+| Tỷ trọng doanh thu nhóm mua lặp lại | Doanh thu nhóm này / tổng doanh thu | 92.21% |
+| Doanh thu/khách mua lặp lại | Doanh thu nhóm / số khách trong nhóm | 2,505.85 |
+| Doanh thu/khách mua một lần | Doanh thu nhóm / số khách trong nhóm | 286.25 |
+| Tỷ trọng 10 khách lớn nhất | Doanh thu 10 khách đứng đầu / tổng doanh thu | 0.26% |
+| Tỷ trọng 10% khách lớn nhất | Doanh thu 2,027 khách đứng đầu / tổng doanh thu | 29.08% |
+| Tỷ trọng 10 sản phẩm lớn nhất | Doanh thu 10 sản phẩm đứng đầu / tổng doanh thu | 89.99% |
 
-### Operational KPI / guardrail
+Số khách thuộc 10% đầu được làm tròn lên: `CEIL(0.10 × 20,261) = 2,027`. Xếp hạng khách theo doanh thu giảm dần, mã khách tăng dần để xử lý trường hợp bằng nhau.
 
-1. Late Delivery Rate
+**Quy ước bộ lọc đề xuất:** khi chọn một khoảng thời gian/thị trường/phân khúc, tính lại số đơn của mỗi khách trong tập đang chọn rồi xác định nhóm mua lặp lại. Nếu cần phân loại khách theo toàn bộ lịch sử nhưng chỉ hiển thị doanh thu kỳ đang chọn, phải đặt tên chỉ số khác. Chưa xác minh được hành vi này bằng thao tác trực tiếp trong PBIX.
 
-### Driver and diagnostic metrics
+## 5. Chỉ số đối soát A
 
-- Gross Sales
-- Total Discount
-- Discount Rate
-- Units Sold
-- Average Order Value
-- Total Customers
-- Repeat Customer Rate
-- Average Actual Delivery Days
+| Chỉ số | Mốc A |
+|---|---:|
+| Số đơn | 65,752 |
+| Doanh thu thuần | 33,054,402.04 |
+| Lợi nhuận | 3,966,902.97 |
+| Biên lợi nhuận | 12.00% |
+| Tỷ lệ đơn bị loại khỏi B | 2,855 / 65,752 = 4.34% |
 
-## 4. KPI definitions
+“Tỷ lệ đơn bị loại” gồm cả nghi gian lận, nên không tự đặt tên là tỷ lệ hủy thuần túy nếu chưa giải thích định nghĩa.
 
-| KPI | Type | Business meaning | Formula | Grain / source | Default scope | Important limitation |
-|---|---|---|---|---|---|---|
-| Recorded Orders | Reconciliation | Tổng số đơn được ghi nhận trong nguồn | `COUNT(*)` | Order — `vw_order_analysis` | Scope A | Bao gồm canceled/fraud orders |
-| Recorded Net Sales | Reconciliation | Tổng Net Sales được ghi trong nguồn | `SUM(net_sales)` | Order item — `vw_order_item_analysis` | Scope A | Không đồng nghĩa recognized revenue |
-| Recorded Total Profit | Reconciliation | Tổng Profit được ghi trong nguồn | `SUM(line_profit)` | Order item — `vw_order_item_analysis` | Scope A | Bao gồm financial values của canceled/fraud orders |
-| Cancellation Rate | Operational / scope | Tỷ lệ đơn thuộc nhóm bị loại khỏi Scope B | Orders with `order_status IN ('CANCELED', 'SUSPECTED_FRAUD')` / Recorded Orders | Order — `vw_order_analysis` | Scope A | `SUSPECTED_FRAUD` được tính vì nhóm này map sang `Shipping canceled`; phải ghi rõ định nghĩa |
-| Core Orders | Primary driver | Số non-canceled orders trong baseline chính | `COUNT(*)` | Order — `vw_order_analysis_non_canceled` | Scope B | Không đồng nghĩa completed orders |
-| Core Net Sales | Primary outcome | Net Sales của non-canceled orders | `SUM(net_sales)` | Order item — `vw_order_item_analysis_non_canceled` | Scope B | Là recorded value trong analytical scope, không phải accounting recognition |
-| Core Total Profit | Primary outcome | Profit của non-canceled order items | `SUM(line_profit)` | Order item — `vw_order_item_analysis_non_canceled` | Scope B | `line_profit` lấy từ `order_profit_per_order` đã được kiểm chứng ở item grain |
-| Profit Margin | Primary outcome | Profit tạo ra trên một đơn vị Net Sales | `SUM(line_profit) / NULLIF(SUM(net_sales), 0)` | Nhóm phân tích | Scope B; Scope A chỉ dùng sensitivity | Không dùng `AVG(order_item_profit_ratio)` |
-| Late Delivery Rate | Operational guardrail | Tỷ lệ non-canceled orders có cờ giao trễ | Orders with `late_delivery_risk = 1` / orders with non-NULL risk | Order — `vw_order_analysis_non_canceled` | Scope B | Không tính trực tiếp trên order-item view; luôn hiển thị tử số và mẫu số |
-| Gross Sales | Driver | Doanh thu trước giảm giá | `SUM(gross_sales)` | Order item | Scope B | Scope A chỉ dùng reconciliation/sensitivity |
-| Total Discount | Driver | Tổng số tiền giảm giá thực tế | `SUM(discount_amount)` | Order item | Scope B | Không tính lại từ discount rate đã làm tròn |
-| Discount Rate | Driver | Tỷ lệ giảm giá có trọng số trên Gross Sales | `SUM(discount_amount) / NULLIF(SUM(gross_sales), 0)` | Nhóm phân tích | Scope B | Không dùng `AVG(order_item_discount_rate)` |
-| Units Sold | Driver | Tổng quantity được ghi nhận | `SUM(quantity)` | Order item | Scope B | Không dùng số order-item rows thay cho quantity |
-| Average Order Value | Driver | Core Net Sales trung bình mỗi non-canceled order | `SUM(net_sales) / NULLIF(COUNT(*), 0)` | Order — `vw_order_analysis_non_canceled` | Scope B | Không dùng `AVG(order_item_total)` |
-| Total Customers | Driver | Số khách hàng duy nhất có non-canceled order | `COUNT(DISTINCT customer_id)` | Order | Scope B | Không dùng số dòng hoặc số đơn |
-| Repeat Customer Rate | Customer | Tỷ lệ khách hàng có từ hai non-canceled orders trở lên | Repeat customers / total customers | Customer summary built from order view | Scope B | Chỉ phản ánh hành vi quan sát được trong giai đoạn dữ liệu |
-| Average Actual Delivery Days | Diagnostic | Số ngày giao thực tế trung bình mỗi non-canceled order | `AVG(actual_shipping_days)` | Order — `vw_order_analysis_non_canceled` | Scope B | Chỉ dùng cho orders có giá trị shipping days hợp lệ |
+## 6. Quy tắc tránh sai số
 
-## 5. KPI hierarchy
+- Chia bằng `NULLIF(mẫu_số, 0)`; trả về trống khi không có cơ sở tính tỷ lệ.
+- Tính tỷ lệ từ tổng tử số và tổng mẫu số. Không lấy `AVG()` biên lợi nhuận hoặc tỷ lệ giảm giá dòng.
+- Dùng số tiền giảm giá thực tế; tỷ lệ giảm giá nguồn đã làm tròn.
+- Không cộng chỉ số cấp đơn sau khi nối vào nhiều dòng sản phẩm.
+- Không gán `Shipping canceled` thành “không trễ”.
+- Tên “mua lặp lại” không đồng nghĩa với giữ chân, trung thành hay giá trị vòng đời khách hàng.
 
-### Core Net Sales
+Project chưa có chỉ tiêu doanh nghiệp chính thức. Trung vị và tỷ lệ tổng thể là mốc so sánh nội bộ, không phải chuẩn đạt/không đạt.
 
-Possible drivers:
-
-- Core Orders
-- Average Order Value
-- Units Sold
-- Customer count
-- Product and market mix
-
-### Core Total Profit and Profit Margin
-
-Possible drivers:
-
-- Core Net Sales
-- Discount Rate
-- Product mix
-- Market and region mix
-- Negative-profit order items
-
-### Late Delivery Rate
-
-Possible drivers:
-
-- Shipping Mode
-- Market
-- Order Region
-- Actual Shipping Days
-- Scheduled Shipping Days
-
-## 6. Target decision
-
-No formal KPI targets are set in this phase because the project does not yet
-have an approved business target or historical benchmark.
-
-Day 4 and later analyses establish dataset baselines. Any target shown later
-must be labeled as provisional unless supported by a business requirement or
-external benchmark.
+Nguồn: [SQL tạo view](../sql/05_create_analysis_views.sql), [SQL 06](../sql/06_business_analysis_sales_product.sql), [SQL 07](../sql/07_business_analysis_customer_market_delivery.sql).

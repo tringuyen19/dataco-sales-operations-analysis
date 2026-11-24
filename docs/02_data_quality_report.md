@@ -1,102 +1,61 @@
-# Data Quality Report
+# Báo cáo chất lượng dữ liệu
 
-## 1. Scope of quality assessment
+## 1. Phạm vi và cách kiểm tra
 
-Data quality checks are performed on Scope A, containing all 180,519
-order-item rows and 65,752 recorded orders.
+Kiểm tra toàn bộ phạm vi A: 180,519 dòng sản phẩm, 65,752 đơn. Không loại trạng thái trước khi hiểu dữ liệu nguồn. Kết quả dưới đây đã được đối chiếu bằng [chương trình Python](../scripts/verify_analysis.py) và các truy vấn PostgreSQL được liệt kê trong [biên bản kiểm chứng](11_project_review_validation.md).
 
-No order status is removed during source-data profiling.
+“Đạt kiểm tra” chỉ nói về quy tắc cụ thể được kiểm tra, không có nghĩa dữ liệu phản ánh đầy đủ hoạt động doanh nghiệp.
 
-The quality assessment distinguishes between:
+## 2. Kết quả chính
 
-- source-data validity;
-- analytical eligibility for business-performance reporting.
+| Kiểm tra | Kết quả | Quyết định |
+|---|---:|---|
+| Thiếu `order_item_id` | 0 dòng | Dùng làm khóa cấp dòng |
+| Trùng `order_item_id` | 0 dòng | Không cần loại trùng |
+| Thiếu các trường trọng yếu được kiểm tra trong SQL 02 | 0 dòng | Có thể tính chỉ số chính |
+| Ngày vận chuyển trước ngày đặt | 0 dòng | Giữ lại |
+| Số lượng ≤ 0 | 0 dòng | Giữ lại |
+| Tỷ lệ giảm giá ngoài [0,1] | 0 dòng | Giữ lại |
+| Cờ giao trễ ngoài {0,1} | 0 dòng | Dùng {0,1} làm tập đủ điều kiện |
+| Sai cặp mã khách, mã sản phẩm hoặc mã danh mục tương ứng | 0 dòng mỗi cặp | Các cặp mã khớp trong nguồn hiện có |
+| Thuộc tính cấp đơn không nhất quán | 0 đơn | Cho phép tổng hợp bảng đơn |
+| Biến thể nhãn do viết hoa/khoảng trắng tạo trùng sau chuẩn hóa | 0 nhóm trong các trường đã rà soát | Không gộp nhãn nghiệp vụ tùy ý |
+| Nhãn danh mục/sản phẩm có khoảng trắng ngoài | 4 giá trị khác nhau mỗi trường | Dùng `BTRIM()` ở view |
+| Đơn hủy/nghi gian lận | 2,855 đơn | Giữ ở A, loại khỏi B |
 
-Orders with `CANCELED` and `SUSPECTED_FRAUD` statuses remain in the
-source dataset but are excluded from Scope B, the non-canceled analytical
-scope used for primary business-performance analysis.
+Những trường trọng yếu gồm khóa, ngày đặt/vận chuyển, trạng thái, phân khúc, thị trường, khu vực, phương thức, cờ trễ, số lượng, đơn giá, doanh thu thuần và lợi nhuận. Tài chính được kiểm chứng riêng tại [tài liệu 03](03_financial_field_validation.md).
 
-## 2. Summary
+## 3. Dữ liệu thiếu có thật nhưng không nằm ở chỉ số chính
 
-| Area | Result | Severity | Decision |
-|---|---|---|---|
-| Row-level key | `180,519` rows; `180,519` distinct `order_item_id`; 0 missing | Passed | Use `order_item_id` as the row-level key |
-| Distinct orders | `65,752` recorded orders | Passed | Count orders with `COUNT(DISTINCT order_id)` at item grain |
-| Missing critical fields | `0`| Passed | |
-| Full-row duplicates | `0` | Passed |  |
-| Date sequence | `0` | Passed | |
-| Quantity | No values less than or equal to 0 | Passed | Retain |
-| Discount rate | No values outside 0–1 | Passed | Retain |
-| Other numeric fields | `0` | Passed |  |
-| Financial fields | Validated separately | See `03_financial_field_validation.md` | Do not duplicate financial formulas here |
-| Category labels | [Điền kết quả query 6] | Medium if inconsistent | Standardize only if inconsistencies exist |
-| Canceled/fraud orders | `2,855` orders, equal to `4.34%` of all orders | High analytical impact | Retain in Scope A; exclude from Scope B |
-| Shipping-day exception | `1,650` risk-0 orders have actual days above scheduled; all are Shipping canceled | Medium | Exclude canceled orders from primary delivery KPI |
+| Trường | Dòng thiếu | Cách xử lý trong project |
+|---|---:|---|
+| `product_description` | 180,519 | Không dùng để phân tích sản phẩm |
+| `order_zipcode` | 155,679 | Không phân tích theo mã bưu chính giao hàng |
+| `customer_last_name` | 8 | Không cần cho tổng hợp theo mã khách |
+| `customer_zipcode` | 3 | Không dùng để suy ra vị trí giao hàng |
 
-## 3. Validations passed
+Không viết “dữ liệu không có giá trị thiếu” cho toàn bộ bảng. Kết luận đúng là **không thiếu các trường trọng yếu đã kiểm tra**, trong khi một số trường phụ bị thiếu nhiều.
 
-- `stg_dataco` contains 180,519 order-item rows.
-- No `order_item_id` is missing.
-- No duplicate `order_item_id` is detected.
-- `order_item_id` is suitable as the row-level key.
-- No `order_item_quantity` is less than or equal to 0.
-- No `order_item_discount_rate` is outside the interval from 0 to 1.
-- Order-level attributes are consistent within the same `order_id`.
-- `CANCELED` and `SUSPECTED_FRAUD` orders consistently map to
-  `Shipping canceled`.
+## 4. Ngoại lệ trạng thái giao hàng
 
-## 4. Data quality observations and issues
+Có 1,650 đơn hủy/nghi gian lận ghi số ngày thực tế lớn hơn dự kiến nhưng cờ trễ vẫn bằng 0. Tất cả thuộc `Shipping canceled`.
 
-### DQ-01 — Canceled and suspected-fraud orders are analytically ineligible
+Đây là khác biệt về cách áp dụng nhãn cho đơn bị hủy. Các giá trị thời gian không chứng minh đơn đã được giao cho khách. Không sửa cờ 0 thành 1 và không đưa nhóm này vào nhóm “không trễ” của báo cáo B.
 
-There are 2,855 orders with `CANCELED` or `SUSPECTED_FRAUD` status.
-These orders correspond to `Shipping canceled`.
+Tỷ lệ trễ thay đổi từ 54.82% ở A thành 57.31% ở B do mẫu số giảm từ 65,752 xuống 62,897; số đơn trễ vẫn là 36,048. Đây là **thay đổi định nghĩa tập báo cáo**, không phải vận hành xấu đi theo thời gian.
 
-#### Decision
+## 5. Các vấn đề ảnh hưởng cách đọc kết quả
 
-Retain these orders in Scope A for source reconciliation and cancellation
-analysis. Exclude them from Scope B, which is used for primary
-non-canceled business-performance analysis.
+| Vấn đề | Hệ quả | Cách xử lý |
+|---|---|---|
+| Tên cột tài chính dễ gây hiểu nhầm | Có thể cộng sai doanh thu/lợi nhuận | Kiểm chứng công thức và cấp dữ liệu |
+| Số thập phân trong CSV có phần dư | Kết quả cộng trực tiếp khác staging | Công bố quy tắc làm tròn từng dòng về 2 chữ số |
+| Cấu trúc giỏ hàng thay đổi cuối 2017 | Doanh thu giảm chưa đủ để kết luận mất khách | Xem số đơn, số lượng và AOV theo tháng |
+| Thiếu sự kiện giao/nhận thực tế | Chưa kiểm chứng được nguyên nhân giao trễ | Bổ sung dữ liệu đơn vị vận chuyển và sự kiện |
+| Không có mục tiêu chính thức | Không thể chấm đạt/không đạt KPI | Dùng mốc quan sát và so sánh tương đối |
 
-No source records are deleted.
+## 6. Quy tắc làm sạch đã áp dụng
 
-### DQ-02 — Shipping canceled and late-risk logic
+Giữ nguyên CSV và phạm vi A. View phân tích bỏ khoảng trắng đầu/cuối, chuyển chuỗi rỗng thành `NULL`, tạo cột thời gian và đổi tên trường. Phạm vi B được tạo bằng view có điều kiện lọc, không xóa giao dịch khỏi nguồn.
 
-Among canceled/fraud orders, 1,650 have actual shipping days greater
-than scheduled shipping days while `late_delivery_risk = 0`.
-
-This does not prove that the orders were delivered to customers before
-being canceled. It only shows that shipping-duration values were recorded
-for canceled shipments.
-
-#### Decision
-
-Do not evaluate Shipping canceled orders using the same Late Delivery
-Rate denominator as non-canceled orders.
-
-## 5. Reporting-scope decision
-
-### Scope A — All recorded orders
-
-- 65,752 orders.
-- Retains all source records for reconciliation and order-status analysis.
-
-### Scope B — Non-canceled orders
-
-Excludes:
-
-- `CANCELED`;
-- `SUSPECTED_FRAUD`.
-
-Scope B contains:
-
-- 62,897 orders.
-
-Scope B is the primary analytical scope because canceled and
-suspected-fraud orders are not eligible for non-canceled
-business-performance and delivery analysis.
-
-Scope B is called `non-canceled orders`, not `completed orders`, because
-other unresolved statuses remain included.
-
-**SQL reference:** `sql/02_data_quality_checks.sql`
+SQL: [kiểm tra chất lượng](../sql/02_data_quality_checks.sql), [kiểm tra trước biến đổi](../sql/04_cleaning_transformation.sql), [tạo view](../sql/05_create_analysis_views.sql).

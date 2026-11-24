@@ -115,8 +115,7 @@ ORDER BY revenue_rank, customer_segment;
 -- One row represents one observed customer.
 -- =========================================================
 
-DROP VIEW IF EXISTS customer_summary;
-CREATE TEMP VIEW customer_summary AS
+CREATE OR REPLACE TEMP VIEW dataco_customer_summary AS
 SELECT
     customer_id,
     MIN(order_datetime) AS first_observed_order,
@@ -134,7 +133,7 @@ SELECT
     COUNT(*) AS customer_rows,
     COUNT(DISTINCT customer_id) AS distinct_customers,
     COUNT(*) - COUNT(DISTINCT customer_id) AS grain_difference
-FROM customer_summary;
+FROM dataco_customer_summary;
 
 -- =========================================================
 -- 03_REPEAT_CUSTOMER_RATE — Scope B
@@ -160,7 +159,7 @@ SELECT
             / NULLIF(SUM(net_sales), 0)
         ), 2
     ) AS repeat_revenue_share_pct
-FROM customer_summary;
+FROM dataco_customer_summary;
 
 -- 03B. Compare one-time and repeat customers
 WITH tagged_customers AS (
@@ -174,7 +173,7 @@ WITH tagged_customers AS (
             WHEN order_count >= 2 THEN 'Repeat'
             ELSE 'Unknown'
         END AS customer_type
-    FROM customer_summary
+    FROM dataco_customer_summary
 ),
 
 group_summary AS (
@@ -219,7 +218,7 @@ WITH ranked_customers AS (
         SUM(net_sales) OVER (ORDER BY net_sales DESC, customer_id
             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) AS cumulative_net_sales
-    FROM customer_summary
+    FROM dataco_customer_summary
 )
 
 SELECT
@@ -253,7 +252,7 @@ WITH ranked_customers AS (
         ROW_NUMBER() OVER (ORDER BY net_sales DESC, customer_id) AS revenue_rank,
         COUNT(*) OVER () AS total_customers,
         SUM(net_sales) OVER () AS total_net_sales
-    FROM customer_summary
+    FROM dataco_customer_summary
 )
 
 SELECT
@@ -514,7 +513,7 @@ SELECT
     ) AS regions_with_majority_late_pct,
 
     ROUND(MIN(late_delivery_rate_pct), 2) AS minimum_region_late_rate_pct,
-    ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY late_delivery_rate_pct), 2) AS median_region_late_rate_pct,
+    ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY late_delivery_rate_pct))::numeric, 2) AS median_region_late_rate_pct,
     ROUND(MAX(late_delivery_rate_pct), 2) AS maximum_region_late_rate_pct
 FROM region_rates;
     
@@ -934,7 +933,7 @@ customer_total AS (
         SUM(order_count) AS orders,
         SUM(net_sales) AS net_sales,
         SUM(profit) AS profit
-    FROM customer_summary
+    FROM dataco_customer_summary
 )
 SELECT
     o.customers AS baseline_customers,

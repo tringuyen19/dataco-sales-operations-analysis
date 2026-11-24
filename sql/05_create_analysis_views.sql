@@ -214,7 +214,7 @@ SELECT
 SELECT
     ROUND(SUM(net_sales), 2) AS recorded_net_sales,
     ROUND(SUM(order_profit), 2) AS recorded_total_profit,
-    ROUND(SUM(order_profit) / NULLIF(SUM(net_sales), 0), 2) AS recorded_profit_margin,
+    ROUND(SUM(order_profit) / NULLIF(SUM(net_sales), 0), 4) AS recorded_profit_margin,
     COUNT(*) AS recorded_orders,
     ROUND(SUM(net_sales)/ NULLIF(COUNT(*), 0), 2) AS recorded_average_order_value,
 
@@ -230,18 +230,18 @@ FROM vw_order_analysis;
 SELECT
     ROUND(SUM(net_sales), 2) AS core_net_sales,
     ROUND(SUM(order_profit), 2) AS core_total_profit,
-    ROUND(SUM(order_profit) / NULLIF(SUM(net_sales), 0), 2) AS core_profit_margin,
+    ROUND(SUM(order_profit) / NULLIF(SUM(net_sales), 0), 4) AS core_profit_margin,
     COUNT(*) AS core_orders,
     ROUND(SUM(net_sales) / NULLIF(COUNT(*), 0), 2) AS average_order_value,
     COUNT(*) FILTER (WHERE late_delivery_risk = 1) AS late_orders,
-    COUNT(*) FILTER (WHERE late_delivery_risk IS NOT NULL) AS delivery_eligible_orders,
+    COUNT(*) FILTER (WHERE late_delivery_risk IN (0, 1)) AS delivery_eligible_orders,
 
     ROUND(
         1.0 * COUNT(*) FILTER (
             WHERE late_delivery_risk = 1
         ) / NULLIF(
             COUNT(*) FILTER (
-                WHERE late_delivery_risk IS NOT NULL
+                WHERE late_delivery_risk IN (0, 1)
             ), 0
         ), 4
     ) AS late_delivery_rate

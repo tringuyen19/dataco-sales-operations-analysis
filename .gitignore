@@ -1,7 +1,16 @@
 
-# Ignore all CSV files
+# Không đưa CSV vào Git; tải dữ liệu theo data/README.md.
 *.csv
 
-# If you want to allow specific CSVs, you can negate patterns, e.g.:
+# Có thể cho phép riêng từng CSV khi cần, ví dụ:
 # !/data/keep-this.csv
+
+# Tệp đệm khi chạy Python kiểm chứng.
+__pycache__/
+*.py[cod]
+
+# Local SQL scripts.
+/sql/00_create_staging.sql
+/sql/08_deeper_diagnostics.sql
+/docs/12_analysis_and_presentation_guide.md
 /docs/10_dashboard_requirements_and_wireframe.md

@@ -1,262 +1,162 @@
-# Data Dictionary — DataCo Supply Chain
+# Từ điển dữ liệu DataCo
 
-Tài liệu gồm 53 trường dữ liệu nguồn, được chia thành 7 nhóm nghiệp vụ. Giá trị *Trống* biểu thị ô ví dụ để trống trong file nguồn; `NULL` là giá trị ví dụ được ghi nguyên văn trong file.
+## 1. Cách sử dụng
 
-Các giá trị trong cột **Validation Rule** là quy tắc đã quan sát hoặc dùng để kiểm tra chất lượng dữ liệu. Chúng không mặc nhiên là database constraints đã được triển khai trong DDL.
+Tài liệu giải thích **53 trường staging** theo nhóm nghiệp vụ. Tên cột giữ nguyên dạng kỹ thuật để đối chiếu SQL. Kiểu dữ liệu là kiểu thực sự khai báo trong [SQL 00](../sql/00_create_staging.sql), không phải cam kết về ý nghĩa nghiệp vụ.
 
-## A. Thông tin thanh toán và giao hàng
+Bảng staging chưa đặt ràng buộc NOT NULL/UNIQUE để có thể phát hiện lỗi nguồn. Các quy tắc dưới đây là điều kiện kiểm tra hoặc cách sử dụng, không mặc nhiên là ràng buộc đã triển khai.
 
-| Field Name | Data Type | Field Length | Validation Rule | Description | Example |
-|---|---|---:|---|---|---|
-| `order_type` | `VARCHAR` | `20` | `NOT NULL` | Phương thức hoặc loại giao dịch thanh toán của đơn hàng. Tên gốc: Type. | `DEBIT` |
-| `days_for_shipping_real` | `INTEGER` | `—` | `NOT NULL; expected >= 0` | Số ngày shipping thực tế được ghi nhận trong nguồn. Đối với canceled orders, giá trị này không chứng minh đơn đã được giao thành công cho khách hàng. | `3` |
-| `days_for_shipment_scheduled` | `INTEGER` | `—` | `NOT NULL; expected >= 0` | Số ngày shipping dự kiến theo phương thức vận chuyển được ghi nhận trong nguồn. | `4` |
-| `delivery_status` | `VARCHAR` | `30` | `NOT NULL` | Trạng thái delivery do nguồn cung cấp. `Shipping canceled` đã được xác minh tương ứng với `CANCELED` và `SUSPECTED_FRAUD`. | `Advance shipping` |
-| `late_delivery_risk` | `INTEGER` | `—` | `NOT NULL; expected IN (0,1)` | Cờ delivery do nguồn cung cấp: 1 = được gắn Late Delivery, 0 = không được gắn late. Giá trị 0 không chứng minh giao đúng hạn vì canceled/fraud orders cũng được gắn 0. | `0` |
-| `shipping_date` | `TIMESTAMP` | `—` | `NOT NULL` | Ngày và giờ vận chuyển của đơn hàng. Tên gốc: shipping date (DateOrders). | `2018-02-03 22:56:00` |
-| `shipping_mode` | `VARCHAR` | `30` | `NOT NULL` | Phương thức hoặc cấp độ dịch vụ vận chuyển được chọn. | `Standard Class` |
+Trường tiền dùng `NUMERIC(12,2)`: làm tròn từng giá trị khi nhập. Trường chữ dùng `TEXT`; các mã bưu chính cũng là chữ để bảo toàn số 0 đầu. Nguồn mô tả biến là `DescriptionDataCoSupplyChain.csv`; một số tên tài chính đã được diễn giải lại sau kiểm chứng thực tế.
 
-## B. Chỉ số doanh thu, chiết khấu và lợi nhuận
+## 2. Thanh toán và vận chuyển — 7 trường
 
-| Field Name | Data Type | Field Length | Validation Rule | Description | Example |
-|---|---|---:|---|---|---|
-| `benefit_per_order` | `NUMERIC` | `12,2` | `Nullable; may be negative` | Lợi nhuận ở cấp order item. Đã được xác minh trùng với `order_profit_per_order` trên toàn bộ 180,519 dòng; không cộng đồng thời hai trường. | `91.25` |
-| `sales_per_customer` | `NUMERIC` | `12,2` | `Expected >= 0` | Giá trị trùng với `order_item_total` trên toàn bộ dữ liệu. Mặc dù tên có “per customer”, đây không phải tổng doanh thu khách hàng mà vẫn ở cấp order item. | `314.64` |
-| `order_item_discount` | `NUMERIC` | `12,2` | `Expected >= 0` | Số tiền discount thực tế của dòng sản phẩm. | `13.11` |
-| `order_item_discount_rate` | `NUMERIC` | `6,4` | `Expected BETWEEN 0 AND 1` | Tỷ lệ discount được lưu sau khi làm tròn. Không dùng để tính chính xác discount amount; nếu cần tỷ lệ thực tế, tính `order_item_discount / NULLIF(sales_amount, 0)`. | `0.0400` |
-| `order_item_product_price` | `NUMERIC` | `12,2` | `Expected >= 0` | Đơn giá niêm yết của sản phẩm tại thời điểm phát sinh giao dịch. | `327.75` |
-| `order_item_profit_ratio` | `NUMERIC` | `8,4` | `Nullable; may be negative` | Item Profit Ratio, tương ứng `order_profit_per_order / NULLIF(order_item_total, 0)`. Không dùng `AVG()` đơn giản để tính Profit Margin tổng hợp. | `0.2900` |
-| `order_item_quantity` | `INTEGER` | `—` | `NOT NULL; CHECK > 0` | Số lượng sản phẩm trong dòng đơn hàng. | `1` |
-| `sales_amount` | `NUMERIC` | `12,2` | `Expected >= 0` | Gross Sales ở cấp order item trước discount. Đã xác minh bằng `order_item_product_price × order_item_quantity`. Tên gốc: Sales. | `327.75` |
-| `order_item_total` | `NUMERIC` | `12,2` | `Expected >= 0` | Recorded Net Sales ở cấp order item sau discount. Không mặc nhiên được xem là recognized revenue. | `314.64` |
-| `order_profit_per_order` | `NUMERIC` | `12,2` | `Nullable; may be negative` | Profit ở cấp order item, mặc dù tên có cụm “per order”. Phải cộng các dòng để tính profit của đơn hoặc nhóm phân tích. | `91.25` |
-
-## C. Danh mục và phòng ban
-
-| Field Name | Data Type | Field Length | Validation Rule | Description | Example |
-|---|---|---:|---|---|---|
-| `category_id` | `INTEGER` | `—` | `NOT NULL; FK candidate` | Mã định danh danh mục sản phẩm gắn với dòng giao dịch. | `73` |
-| `category_name` | `VARCHAR` | `50` | `NOT NULL` | Tên danh mục sản phẩm. | `Sporting Goods` |
-| `department_id` | `INTEGER` | `—` | `NOT NULL; FK candidate` | Mã định danh phòng ban hoặc nhóm kinh doanh quản lý danh mục. | `2` |
-| `department_name` | `VARCHAR` | `50` | `NOT NULL` | Tên phòng ban hoặc nhóm kinh doanh. | `Fitness` |
-
-## D. Thông tin khách hàng
-
-| Field Name | Data Type | Field Length | Validation Rule | Description | Example |
-|---|---|---:|---|---|---|
-| `customer_id` | `INTEGER` | `—` | `NOT NULL; FK candidate` | Mã định danh khách hàng. Có thể xuất hiện trong nhiều đơn hàng. | `20755` |
-| `customer_first_name` | `VARCHAR` | `100` | `Nullable` | Tên của khách hàng. | `Cally` |
-| `customer_last_name` | `VARCHAR` | `100` | `Nullable` | Họ của khách hàng. | `Holloway` |
-| `customer_email` | `VARCHAR` | `255` | `Nullable; sensitive/unused` | Địa chỉ email khách hàng. Trong bản dữ liệu được chia sẻ, giá trị thường đã được che. | `XXXXXXXXX` |
-| `customer_password` | `VARCHAR` | `100` | `Nullable; sensitive/unused` | Mật khẩu khách hàng đã được che hoặc ẩn danh. Không nên sử dụng trong phân tích. | `XXXXXXXXX` |
-| `customer_segment` | `VARCHAR` | `30` | `NOT NULL` | Phân khúc khách hàng theo mô hình kinh doanh. | `Consumer` |
-| `customer_city` | `VARCHAR` | `100` | `Nullable` | Thành phố trong địa chỉ đăng ký của khách hàng | `Caguas` |
-| `customer_country` | `VARCHAR` | `100` | `Nullable` | Quốc gia trong địa chỉ đăng ký khách hàng. | `Puerto Rico` |
-| `customer_state` | `VARCHAR` | `100` | `Nullable` | Bang/tỉnh trong địa chỉ đăng ký của khách hàng | `PR` |
-| `customer_street` | `VARCHAR` | `255` | `Nullable; sensitive` | Địa chỉ đường/phố của khách hàng. Không cần thiết cho phần lớn phân tích BI. | `5365 Noble Nectar Island` |
-| `customer_zipcode` | `VARCHAR` | `20` | `Nullable` | Mã bưu chính của khách hàng. Dùng VARCHAR để bảo toàn số 0 ở đầu. | `725` |
-| `latitude` | `NUMERIC` | `10,7` | `Nullable; expected BETWEEN -90 AND 90` | Vĩ độ gắn với vị trí địa lý của khách hàng. | `18.2514534` |
-| `longitude` | `NUMERIC` | `10,7` | `Nullable; expected BETWEEN -180 AND 180` | Kinh độ gắn với vị trí địa lý của khách hàng. | `-66.0370560` |
-
-## E. Thông tin thị trường và đơn hàng
-
-| Field Name | Data Type | Field Length | Validation Rule | Description | Example |
-|---|---|---:|---|---|---|
-| `market` | `VARCHAR` | `50` | `NOT NULL` | Thị trường kinh doanh cấp cao nơi đơn hàng được ghi nhận. | `Pacific Asia` |
-| `order_id` | `INTEGER` | `—` | `NOT NULL; grouping key` | Mã định danh đơn hàng. Không duy nhất ở staging vì một đơn có thể chứa nhiều order items. Được sử dụng làm key để tạo `vw_order_analysis`. | `77202` |
-| `order_customer_id` | `INTEGER` | `—` | `NOT NULL; FK candidate` | Mã khách hàng được lưu tại đơn hàng. Thông thường cần bằng customer_id. | `20755` |
-| `order_date` | `TIMESTAMP` | `—` | `NOT NULL` | Ngày và giờ khách hàng đặt đơn hàng. Tên gốc: order date (DateOrders). | `2018-01-31 22:56:00` |
-| `order_status` | `VARCHAR` | `30` | `NOT NULL` | Trạng thái xử lý hoặc thanh toán của đơn hàng. | `COMPLETE` |
-| `order_city` | `VARCHAR` | `100` | `Nullable` | Thành phố đích của đơn hàng hoặc thành phố giao hàng. | `Bekasi` |
-| `order_country` | `VARCHAR` | `100` | `Nullable` | Quốc gia đích của đơn hàng hoặc quốc gia giao hàng. | `Indonesia` |
-| `order_region` | `VARCHAR` | `50` | `Nullable` | Khu vực địa lý cấp vùng của đơn hàng. | `Southeast Asia` |
-| `order_state` | `VARCHAR` | `100` | `Nullable` | Bang, tỉnh hoặc khu vực hành chính tại địa chỉ giao hàng. | `Java Occidental` |
-| `order_zipcode` | `VARCHAR` | `20` | `Nullable` | Mã bưu chính của địa chỉ đơn hàng. Cột này có nhiều giá trị thiếu trong dữ liệu mẫu. |  |
-
-## F. Dòng sản phẩm trong đơn hàng
-
-| Field Name | Data Type | Field Length | Validation Rule | Description | Example |
-|---|---|---:|---|---|---|
-| `order_item_id` | `INTEGER` | `—` | `PK candidate; NOT NULL; UNIQUE` | order_item_id được sử dụng làm grain key (khóa xác định cấp độ dòng) của vw_order_item_analysis. | `180517` |
-| `order_item_cardprod_id` | `INTEGER` | `—` | `NOT NULL; FK candidate` | Mã sản phẩm được lưu trên dòng đơn hàng. Thường tương ứng với product_card_id. | `1360` |
-
-## G. Thông tin sản phẩm
-
-| Field Name | Data Type | Field Length | Validation Rule | Description | Example |
-|---|---|---:|---|---|---|
-| `product_card_id` | `INTEGER` | `—` | `NOT NULL; FK candidate` | Mã định danh sản phẩm. Có thể lặp lại trên nhiều dòng giao dịch. | `1360` |
-| `product_category_id` | `INTEGER` | `—` | `NOT NULL; FK candidate` | Mã danh mục được lưu trong thông tin sản phẩm. Thông thường cần bằng category_id. | `73` |
-| `product_name` | `VARCHAR` | `255` | `NOT NULL` | Tên sản phẩm. Cần dùng TRIM() vì dữ liệu có thể chứa khoảng trắng cuối chuỗi. | `Smart watch` |
-| `product_description` | `TEXT` | `—` | `Nullable` | Nội dung mô tả chi tiết sản phẩm. Phần lớn bản dữ liệu có thể để trống. |  |
-| `product_image` | `TEXT` | `—` | `Nullable` | URL hình ảnh sản phẩm. Có thể chứa khoảng trắng hoặc URL không còn hoạt động. | `http://images.acmesports.sports/Smart+watch` |
-| `product_price` | `NUMERIC` | `12,2` | `Expected >= 0` | Giá niêm yết hoặc giá chuẩn trong danh mục sản phẩm. | `327.75` |
-| `product_status` | `INTEGER` | `—` | `NOT NULL; categorical` | Trạng thái sản phẩm được mã hóa bằng số. Dataset mẫu chủ yếu sử dụng 0; cần kiểm tra tập giá trị trước khi diễn giải. | `0` |
-
-## H. Analysis Layer Mapping
-
-Analysis layer phân biệt hai reporting scopes:
-
-| View | Scope | Grain | Main use |
-|---|---|---|---|
-| `vw_order_item_analysis` | Scope A — All recorded orders | Một dòng mỗi `order_item_id` | Source reconciliation, order-status và sensitivity analysis |
-| `vw_order_analysis` | Scope A — All recorded orders | Một dòng mỗi `order_id` | Recorded-order reconciliation, status và cancellation analysis |
-| `vw_order_item_analysis_non_canceled` | Scope B — Non-canceled orders | Một dòng mỗi `order_item_id` | Primary product, category, sales, discount và profit analysis |
-| `vw_order_analysis_non_canceled` | Scope B — Non-canceled orders | Một dòng mỗi `order_id` | Primary order, customer, market và delivery analysis |
-
-Scope B loại `CANCELED` và `SUSPECTED_FRAUD`. Scope này được gọi là **non-canceled orders**, không gọi là completed orders vì vẫn chứa các status chưa hoàn tất khác.
-
-### H.1. Scope A order-item analysis view
-
-View: `vw_order_item_analysis`
-
-Grain: Một dòng đại diện cho một `order_item_id`.
-
-View này được giữ làm Scope A và được sử dụng cho:
-
-- Source reconciliation.
-- Order-status analysis.
-- Cancellation và financial sensitivity analysis.
-- Đối chiếu với order-level Scope A view.
-
-#### Mapping từ staging → analysis
-
-| Source field (`stg_dataco`) | Analysis field (`vw_order_item_analysis`) | Purpose |
+| Trường | Kiểu staging | Ý nghĩa và quy tắc sử dụng |
 |---|---|---|
-| `order_item_id` | `order_item_id` | Key của order item |
-| `order_id` | `order_id` | Liên kết với đơn hàng |
-| `customer_id` | `customer_id` | Khách hàng |
-| `product_card_id` | `product_card_id` | Sản phẩm |
-| `order_date` | `order_datetime` | Ngày giờ đặt hàng |
-| `order_date` | `order_date` | Ngày đặt hàng |
-| `order_date` | `order_month` | Tháng đặt hàng |
-| `order_date` | `order_quarter` | Quý đặt hàng |
-| `order_date` | `order_year` | Năm đặt hàng |
-| `category_name` | `category_name` | Danh mục |
-| `product_name` | `product_name` | Sản phẩm |
-| `customer_segment` | `customer_segment` | Phân khúc khách hàng |
-| `market` | `market` | Thị trường |
-| `order_region` | `order_region` | Khu vực |
-| `order_country` | `order_country` | Quốc gia giao hàng |
-| `shipping_mode` | `shipping_mode` | Phương thức vận chuyển |
-| `order_status` | `order_status` | Trạng thái đơn |
-| `delivery_status` | `delivery_status` | Trạng thái giao hàng |
-| `late_delivery_risk` | `late_delivery_risk` | Rủi ro giao trễ |
-| `days_for_shipping_real` | `actual_shipping_days` | Số ngày shipping thực tế được ghi nhận |
-| `days_for_shipment_scheduled` | `scheduled_shipping_days` | Số ngày shipping dự kiến được ghi nhận |
-| `order_item_quantity` | `quantity` | Số lượng bán |
-| `sales_amount` | `gross_sales` | Doanh thu trước discount |
-| `order_item_discount` | `discount_amount` | Tiền discount thực tế |
-| `order_item_total` | `net_sales` | Doanh thu sau discount |
-| `order_profit_per_order` | `line_profit` | Lợi nhuận ở cấp order item |
+| `order_type` | TEXT | Loại giao dịch/phương thức thanh toán; tên gốc Type, ví dụ DEBIT |
+| `days_for_shipping_real` | INTEGER | Số ngày vận chuyển thực tế được nguồn ghi nhận; không đủ để xác minh khách đã nhận hàng |
+| `days_for_shipment_scheduled` | INTEGER | Số ngày vận chuyển dự kiến theo nguồn; dùng để so với số ngày thực tế |
+| `delivery_status` | TEXT | Nhãn Advance shipping, Late delivery, Shipping canceled hoặc Shipping on time |
+| `late_delivery_risk` | INTEGER | Cờ 0/1; 1 là trễ theo nguồn. Nhóm giao hàng bị hủy cũng có cờ 0 nên cần lọc phạm vi |
+| `shipping_date` | TIMESTAMP | Ngày giờ vận chuyển; tên gốc shipping date (DateOrders). Không tự gọi là ngày nhận hàng |
+| `shipping_mode` | TEXT | Phương thức dịch vụ: First Class, Second Class, Same Day, Standard Class; giữ nhãn để đối chiếu |
 
-#### Derived fields
+## 3. Doanh thu, giảm giá và lợi nhuận — 10 trường
 
-Các field sau không tồn tại trực tiếp trong dataset gốc mà được tạo trong analysis view:
-
-| Analysis field | Formula | Purpose |
+| Trường | Kiểu staging | Ý nghĩa và quy tắc sử dụng |
 |---|---|---|
-| `actual_discount_rate` | `discount_amount / NULLIF(gross_sales, 0)` | Tỷ lệ discount thực tế |
-| `line_profit_margin` | `line_profit / NULLIF(net_sales, 0)` | Item Profit Ratio |
-| `order_date` | Derived from `order_datetime` | Phân tích theo ngày |
-| `order_month` | `DATE_TRUNC('month', order_datetime)` | Phân tích theo tháng |
-| `order_quarter` | `DATE_TRUNC('quarter', order_datetime)` | Phân tích theo quý |
-| `order_year` | `EXTRACT(YEAR FROM order_datetime)` | Phân tích theo năm |
+| `benefit_per_order` | NUMERIC(12,2) | Lợi nhuận dòng, khớp trường lợi nhuận bên dưới theo kiểm chứng; không cộng hai trường |
+| `sales_per_customer` | NUMERIC(12,2) | Khớp doanh thu thuần của dòng; không phải doanh thu tổng của khách |
+| `order_item_discount` | NUMERIC(12,2) | Số tiền giảm giá thực tế của dòng; dùng để tính tổng giảm giá |
+| `order_item_discount_rate` | NUMERIC(6,4) | Tỷ lệ giảm giá nguồn đã làm tròn; kỳ vọng trong [0,1], không dùng dựng lại chính xác tiền giảm |
+| `order_item_product_price` | NUMERIC(12,2) | Đơn giá sản phẩm trên dòng giao dịch; kỳ vọng không âm |
+| `order_item_profit_ratio` | NUMERIC(8,4) | Tỷ lệ lợi nhuận của dòng theo nguồn; có thể âm, không dùng AVG để tính biên tổng |
+| `order_item_quantity` | INTEGER | Số đơn vị sản phẩm trong dòng; phải lớn hơn 0 để tính số lượng bán |
+| `sales_amount` | NUMERIC(12,2) | Doanh thu trước giảm giá của dòng; tên gốc Sales |
+| `order_item_total` | NUMERIC(12,2) | Doanh thu thuần của dòng theo nguồn; chỉ số doanh thu chính |
+| `order_profit_per_order` | NUMERIC(12,2) | Lợi nhuận dòng dù tên có “per order”; cộng các dòng để ra lợi nhuận đơn. Chưa có chi tiết cấu phần chi phí |
 
-`actual_discount_rate` được tính lại từ số tiền discount thực tế thay vì sử dụng trực tiếp `order_item_discount_rate`, vì `order_item_discount_rate` trong dataset đã được làm tròn.
+Các quan hệ công thức được kiểm tra với dung sai từng dòng 0.01. Tổng doanh thu trước giảm giá trừ tổng giảm giá có thể lệch tổng doanh thu thuần do sai lệch nhỏ tích lũy. Xem [kiểm chứng tài chính](03_financial_field_validation.md).
 
-### H.2. Scope A order-level analysis view
+## 4. Danh mục và bộ phận — 4 trường
 
-View: `vw_order_analysis`
-
-Grain: Một dòng đại diện cho một `order_id`.
-
-View này được giữ làm Scope A và được sử dụng cho:
-
-- Recorded Orders và recorded financial reconciliation.
-- Order Status và cancellation analysis.
-- Scope A/Scope B sensitivity.
-- Đối chiếu với order-item Scope A view.
-
-#### Order-level fields
-
-| Field | Source / Calculation | Meaning |
+| Trường | Kiểu staging | Ý nghĩa và quy tắc sử dụng |
 |---|---|---|
-| `order_id` | `order_id` | Key của đơn hàng |
-| `customer_id` | Representative value from order items | Khách hàng của đơn |
-| `order_datetime` | `order_datetime` | Thời điểm đặt đơn |
-| `order_date` | `order_date` | Ngày đặt đơn |
-| `order_month` | `order_month` | Tháng đặt đơn |
-| `order_quarter` | `order_quarter` | Quý đặt đơn |
-| `order_year` | `order_year` | Năm đặt đơn |
-| `customer_segment` | Representative value | Phân khúc khách hàng |
-| `market` | Representative value | Thị trường |
-| `order_region` | Representative value | Khu vực |
-| `order_country` | Representative value | Quốc gia giao hàng |
-| `shipping_mode` | Representative value | Phương thức vận chuyển |
-| `order_status` | Representative value | Trạng thái đơn |
-| `delivery_status` | Representative value | Trạng thái giao hàng |
-| `late_delivery_risk` | Representative value | Rủi ro giao trễ |
-| `actual_shipping_days` | Representative value | Số ngày shipping thực tế được ghi nhận |
-| `scheduled_shipping_days` | Representative value | Số ngày shipping dự kiến được ghi nhận |
-| `order_line_count` | `COUNT(*)` | Số order item trong đơn |
-| `distinct_product_count` | `COUNT(DISTINCT product_card_id)` | Số sản phẩm khác nhau |
-| `total_quantity` | `SUM(quantity)` | Tổng số sản phẩm trong đơn |
-| `gross_sales` | `SUM(gross_sales)` | Doanh thu gộp của đơn |
-| `discount_amount` | `SUM(discount_amount)` | Tổng discount của đơn |
-| `net_sales` | `SUM(net_sales)` | Doanh thu thuần của đơn |
-| `order_profit` | `SUM(line_profit)` | Tổng lợi nhuận của đơn |
-| `order_profit_margin` | `SUM(line_profit) / NULLIF(SUM(net_sales), 0)` | Tỷ suất lợi nhuận của đơn |
+| `category_id` | INTEGER | Mã danh mục trên giao dịch |
+| `category_name` | TEXT | Tên danh mục; bỏ khoảng trắng ngoài trước khi tổng hợp |
+| `department_id` | INTEGER | Mã bộ phận/nhóm kinh doanh của nguồn |
+| `department_name` | TEXT | Tên bộ phận/nhóm kinh doanh |
 
-Các trường như `customer_id`, `market`, `shipping_mode`, `order_status` và delivery attributes chỉ được lấy bằng giá trị đại diện sau khi đã kiểm tra tính nhất quán trong cùng `order_id`.
+## 5. Khách hàng và vị trí tham khảo — 13 trường
 
-### H.3. Scope B non-canceled views
+| Trường | Kiểu staging | Ý nghĩa và quy tắc sử dụng |
+|---|---|---|
+| `customer_id` | INTEGER | Mã khách; có thể có nhiều đơn |
+| `customer_first_name` | TEXT | Tên khách theo nguồn; không dùng thay khóa khách |
+| `customer_last_name` | TEXT | Họ khách; thiếu 8 dòng trong tệp hiện có |
+| `customer_email` | TEXT | Email được che trong dữ liệu chia sẻ; không dùng trong phân tích |
+| `customer_password` | TEXT | Trường mật khẩu đã che; không dùng trong phân tích |
+| `customer_segment` | TEXT | Phân khúc nguồn: Consumer, Corporate, Home Office |
+| `customer_city` | TEXT | Thành phố gắn với thông tin khách trong nguồn; chưa mặc định là đích giao đơn |
+| `customer_country` | TEXT | Quốc gia gắn với thông tin khách; phân biệt với order_country |
+| `customer_state` | TEXT | Bang/tỉnh gắn với thông tin khách |
+| `customer_street` | TEXT | Địa chỉ đường/phố khách; không cần cho kết luận hiện tại |
+| `customer_zipcode` | TEXT | Mã bưu chính khách; thiếu 3 dòng, giữ dạng chữ |
+| `latitude` | NUMERIC(10,7) | Vĩ độ trong nguồn, kỳ vọng [-90,90]; cần xác minh đối tượng vị trí trước khi lập bản đồ |
+| `longitude` | NUMERIC(10,7) | Kinh độ trong nguồn, kỳ vọng [-180,180]; chưa dùng để suy ra tuyến vận chuyển |
 
-Hai view Scope B kế thừa toàn bộ fields từ hai view Scope A và chỉ áp dụng analytical filter:
+Mô tả nguồn gọi tọa độ là vị trí cửa hàng; project chưa xác minh với dữ liệu địa lý độc lập. Không tự diễn giải chúng thành tọa độ nhận hàng hoặc dùng tính khoảng cách giao hàng.
+
+## 6. Thị trường và đơn hàng — 11 trường
+
+| Trường | Kiểu staging | Ý nghĩa và quy tắc sử dụng |
+|---|---|---|
+| `market` | TEXT | Thị trường giao hàng cấp lớn: Africa, Europe, LATAM, Pacific Asia, USCA |
+| `order_id` | INTEGER | Mã đơn, lặp hợp lệ ở staging do có nhiều dòng sản phẩm |
+| `order_customer_id` | INTEGER | Mã khách trên đơn; kiểm tra bằng customer_id |
+| `order_date` | TIMESTAMP | Ngày giờ đặt; tên gốc order date (DateOrders); CSV hiện có dùng tháng/ngày/năm |
+| `order_status` | TEXT | Trạng thái xử lý/thanh toán; B loại CANCELED và SUSPECTED_FRAUD |
+| `order_city` | TEXT | Thành phố đích đơn hàng theo nguồn |
+| `order_country` | TEXT | Quốc gia đích; dùng cho phân tích giao hàng |
+| `order_region` | TEXT | Khu vực đích; có 23 giá trị trong phân tích B |
+| `order_state` | TEXT | Bang/tỉnh ở đích đơn hàng |
+| `order_zipcode` | TEXT | Mã bưu chính đơn; thiếu 155,679 dòng, chưa dùng cho phân tích địa lý |
+| `order_item_id` | INTEGER | Khóa dòng sản phẩm: không thiếu, không trùng trong dữ liệu hiện có |
+
+`order_item_id` được đặt ở nhóm này để đủ cấu trúc bảng tóm tắt; cấp dữ liệu của trường vẫn là dòng sản phẩm, không phải đơn.
+
+## 7. Sản phẩm — 8 trường
+
+| Trường | Kiểu staging | Ý nghĩa và quy tắc sử dụng |
+|---|---|---|
+| `order_item_cardprod_id` | INTEGER | Mã sản phẩm trên dòng; kiểm tra bằng product_card_id |
+| `product_card_id` | INTEGER | Mã sản phẩm dùng để nhóm và đối chiếu |
+| `product_category_id` | INTEGER | Mã danh mục trong thông tin sản phẩm; kiểm tra bằng category_id |
+| `product_name` | TEXT | Tên sản phẩm; dùng mã cùng tên khi tổng hợp, bỏ khoảng trắng ngoài |
+| `product_description` | TEXT | Mô tả sản phẩm; thiếu toàn bộ 180,519 dòng trong tệp hiện có |
+| `product_image` | TEXT | Đường dẫn hình ảnh; chưa sử dụng hoặc xác minh tính hoạt động |
+| `product_price` | NUMERIC(12,2) | Giá trong thông tin sản phẩm; phân biệt với đơn giá dòng giao dịch |
+| `product_status` | INTEGER | Mã trạng thái sản phẩm. Mô tả nguồn: 1 không có sẵn, 0 có sẵn; không thay thế lịch sử tồn kho |
+
+Tổng số trường: 7 + 10 + 4 + 13 + 11 + 8 = **53**.
+
+## 8. Ánh xạ sang bảng dòng sản phẩm phân tích
+
+`vw_order_item_analysis` giữ toàn bộ phạm vi A, một dòng/`order_item_id`.
+
+| Nguồn staging | Trường phân tích | Ý nghĩa |
+|---|---|---|
+| order_item_id, order_id, customer_id, product_card_id | Giữ tên | Khóa dòng, đơn, khách, sản phẩm |
+| order_date | order_datetime | Thời điểm đặt |
+| order_date | order_date | Chuyển sang DATE |
+| order_date | order_month, order_quarter, order_year | Tháng, quý và năm |
+| category_name, product_name | Giữ tên | Nhãn đã BTRIM và chuyển chuỗi rỗng thành NULL |
+| customer_segment, market, order_region, order_country | Giữ tên | Thuộc tính khách/địa lý đã chuẩn hóa chữ |
+| shipping_mode, order_status, delivery_status | Giữ tên | Nhãn nghiệp vụ đã chuẩn hóa chữ |
+| late_delivery_risk | Giữ tên | Cờ trễ |
+| days_for_shipping_real | actual_shipping_days | Ngày thực tế |
+| days_for_shipment_scheduled | scheduled_shipping_days | Ngày dự kiến |
+| order_item_quantity | quantity | Số lượng bán |
+| sales_amount | gross_sales | Doanh thu trước giảm giá |
+| order_item_discount | discount_amount | Tiền giảm giá |
+| order_item_total | net_sales | Doanh thu thuần |
+| order_profit_per_order | line_profit | Lợi nhuận dòng |
+
+Cột tính thêm:
+
+- `actual_discount_rate = discount_amount / NULLIF(gross_sales,0)`.
+- `line_profit_margin = line_profit / NULLIF(net_sales,0)`.
+- Tháng/quý tạo bằng `DATE_TRUNC`, năm bằng `EXTRACT`.
+
+## 9. Ánh xạ sang bảng đơn
+
+`vw_order_analysis` tổng hợp A thành một dòng/`order_id`.
+
+| Nhóm trường | Cách tạo |
+|---|---|
+| Khách, ngày, phân khúc, địa lý, phương thức, trạng thái và ngày vận chuyển | Lấy MIN sau khi xác nhận nhất quán trong cùng đơn |
+| order_line_count | COUNT(*) dòng sản phẩm |
+| distinct_product_count | COUNT(DISTINCT product_card_id) |
+| total_quantity | SUM(quantity) |
+| gross_sales, discount_amount, net_sales | Cộng từng trường tương ứng của các dòng |
+| order_profit | SUM(line_profit) |
+| order_profit_margin | SUM(line_profit) / NULLIF(SUM(net_sales),0) |
+
+Hai view B kế thừa cột từ view A tương ứng và thêm điều kiện:
 
 ```sql
-order_status IS DISTINCT FROM 'CANCELED'
-AND order_status IS DISTINCT FROM 'SUSPECTED_FRAUD'
+WHERE order_status IS DISTINCT FROM 'CANCELED'
+  AND order_status IS DISTINCT FROM 'SUSPECTED_FRAUD'
 ```
 
-Sử dụng `IS DISTINCT FROM` giúp không âm thầm loại các dòng có `order_status IS NULL`. Dữ liệu nguồn và Scope A views không bị xóa hoặc sửa để tạo Scope B.
+`IS DISTINCT FROM` không âm thầm loại trạng thái NULL. Nếu có NULL trong dữ liệu mới, vẫn cần kiểm tra và xử lý riêng; hiện nguồn không thiếu trạng thái trọng yếu.
 
-| Scope B view | Inherited from | Default use |
-|---|---|---|
-| `vw_order_item_analysis_non_canceled` | `vw_order_item_analysis` | Product, category, time, sales, discount và profit analysis |
-| `vw_order_analysis_non_canceled` | `vw_order_analysis` | Order, customer, market, Average Order Value và delivery analysis |
+## 10. Chọn nguồn tính chỉ số
 
-## I. KPI source mapping
+| Câu hỏi | Nguồn mặc định |
+|---|---|
+| Sản phẩm, danh mục, số lượng, giảm giá, lợi nhuận dòng | vw_order_item_analysis_non_canceled |
+| Đơn, khách, AOV, thị trường/khu vực, giao hàng | vw_order_analysis_non_canceled |
+| Mua một lần/lặp lại, mức tập trung theo khách | Tổng hợp một dòng/khách từ bảng đơn B |
+| Đối soát và phân tích trạng thái/hủy | Hai view A |
 
-Các KPI chính của project sử dụng các view sau:
-
-| KPI | Default Scope | Source View | Grain | Formula |
-|---|---|---|---|---|
-| Recorded Orders | Scope A | `vw_order_analysis` | Order | `COUNT(*)` |
-| Recorded Net Sales | Scope A | `vw_order_item_analysis` | Order item | `SUM(net_sales)` |
-| Recorded Total Profit | Scope A | `vw_order_item_analysis` | Order item | `SUM(line_profit)` |
-| Cancellation Rate | Scope A | `vw_order_analysis` | Order | `1.0 × COUNT(*) FILTER (WHERE order_status IN ('CANCELED', 'SUSPECTED_FRAUD')) / NULLIF(COUNT(*), 0)` |
-| Core Orders | Scope B | `vw_order_analysis_non_canceled` | Order | `COUNT(*)` |
-| Core Net Sales | Scope B | `vw_order_item_analysis_non_canceled` | Order item | `SUM(net_sales)` |
-| Core Total Profit | Scope B | `vw_order_item_analysis_non_canceled` | Order item | `SUM(line_profit)` |
-| Profit Margin | Scope B; Scope A for sensitivity | Scope-appropriate item view | Analysis group | `SUM(line_profit) / NULLIF(SUM(net_sales), 0)` |
-| Average Order Value | Scope B | `vw_order_analysis_non_canceled` | Order | `SUM(net_sales) / NULLIF(COUNT(*), 0)` |
-| Units Sold | Scope B | `vw_order_item_analysis_non_canceled` | Order item | `SUM(quantity)` |
-| Total Discount | Scope B | `vw_order_item_analysis_non_canceled` | Order item | `SUM(discount_amount)` |
-| Discount Rate | Scope B | `vw_order_item_analysis_non_canceled` | Analysis group | `SUM(discount_amount) / NULLIF(SUM(gross_sales), 0)` |
-| Late Delivery Rate | Scope B | `vw_order_analysis_non_canceled` | Order | `1.0 × late_orders / NULLIF(delivery_eligible_orders, 0)` |
-| Repeat Customer Rate | Scope B | Customer summary from `vw_order_analysis_non_canceled` | Customer | `repeat_customers / NULLIF(total_customers, 0)` |
-
-## J. Field usage rules
-
-- Hai view Scope A được sử dụng cho source reconciliation, status analysis, cancellation analysis và sensitivity.
-- Hai view Scope B được sử dụng cho primary business-performance, product, customer, market và delivery analysis.
-- Không tính Total Orders bằng `COUNT(*)` trên order-item view.
-- Không tính AOV bằng `AVG(net_sales)` trên order-item view.
-- Không tính Total Discount bằng `SUM(gross_sales × order_item_discount_rate)`.
-- Không tính tổng Profit Margin bằng `AVG(line_profit_margin)`.
-- Không cộng trực tiếp các order-level measures sau khi join hai view nếu việc join làm nhân bản order items.
-- Không xếp canceled/fraud orders vào nhóm `Not Late` chỉ vì `late_delivery_risk = 0`.
-- Mọi bảng kết quả phải ghi rõ Scope A hoặc Scope B.
-- `order_item_discount_rate` được xem là field tham khảo vì đã được làm tròn.
-- `sales_per_customer` không được sử dụng làm Customer Lifetime Value hoặc tổng doanh thu của khách hàng.
-- `benefit_per_order` không cần sử dụng trong analysis layer vì đã được xác minh trùng với `order_profit_per_order`.
+[Từ điển chỉ số](04_kpi_dictionary.md) quy định công thức và mẫu số. [Kiểm chứng mô hình](06_analysis_model_validation.md) giải thích đối soát giữa các cấp. Không dùng tên cột để suy ra cấp dữ liệu khi chưa kiểm tra.

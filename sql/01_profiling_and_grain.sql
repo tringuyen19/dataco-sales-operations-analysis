@@ -26,7 +26,7 @@ SELECT
 	sum(order_item_quantity) AS total_quantity
 FROM stg_dataco
 GROUP BY order_id 
-LIMIT 50
+LIMIT 50;
 
 /* 4. Phân phối số dòng sản phẩm (order lines) trên mỗi đơn hàng */
 SELECT
@@ -41,7 +41,7 @@ FROM
 	GROUP BY order_id
 ) t
 GROUP BY number_of_lines 
-ORDER BY number_of_lines
+ORDER BY number_of_lines;
 
 /* 5. Order Item Id có duy nhất không?, có null ko ? */
 /* 5.1. Validate order_item_id as the row-level key */
@@ -70,7 +70,7 @@ FROM stg_dataco sd
 GROUP BY customer_id 
 HAVING COUNT(DISTINCT order_id) > 1
 ORDER BY num_of_orders DESC
-LIMIT 50
+LIMIT 50;
 
 /* 7. Các dòng cùng một đơn hàng, có cùng các thuộc tính? */
 /* 7. Check consistency of order-level attributes */

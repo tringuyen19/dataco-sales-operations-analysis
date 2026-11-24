@@ -1,216 +1,80 @@
-# Data Understanding
+# Hiểu dữ liệu và xác định đơn vị phân tích
 
-## 1. Dataset overview
+## 1. Project đang phân tích điều gì?
 
-### Evidence
+Dữ liệu DataCo chứa giao dịch bán hàng, khách hàng, sản phẩm và thông tin vận chuyển. Project dùng dữ liệu này để hỗ trợ một quản lý Kinh doanh và Vận hành giả định khoanh vùng vấn đề cần điều tra. Chưa có doanh nghiệp giao chỉ tiêu, ngân sách hay mục tiêu chính thức.
 
-| Metric | Result |
+Nguồn dữ liệu và cách nạp được mô tả trong [hướng dẫn dữ liệu](../data/README.md). Kết quả kiểm chứng của lần rà soát này nằm tại [biên bản kiểm chứng](11_project_review_validation.md).
+
+## 2. Quy mô dữ liệu nguồn
+
+| Chỉ số | Phạm vi A: toàn bộ nguồn |
 |---|---:|
-| Total rows | 180,519 |
-| Distinct orders | 65,752 |
-| Distinct order items | 180,519 |
-| Distinct customers | 20,652 |
-| Distinct products | 118 |
+| Dòng dữ liệu | 180,519 |
+| Đơn hàng khác nhau | 65,752 |
+| Khách hàng khác nhau | 20,652 |
+| Sản phẩm khác nhau | 118 |
+| Số lượng sản phẩm bán ra | 384,079 |
+| Khoảng ngày đặt hàng | 01/01/2015–31/01/2018 |
+| Số tháng có giao dịch | 37 |
 
-### Interpretation
+**Quy ước số:** tài liệu dùng dấu phẩy phân tách hàng nghìn và dấu chấm cho phần thập phân để dễ đối chiếu SQL. Ví dụ 1,234.56 là một nghìn hai trăm ba mươi bốn phẩy năm sáu. Đơn vị tiền tệ chưa được xác minh.
 
-Bảng có 180,519 dòng và cũng có 180,519 `order_item_id` khác nhau, trong khi chỉ có 65,752 `order_id` khác nhau. Điều này cho thấy một đơn hàng có thể xuất hiện ở nhiều dòng; mỗi dòng có khả năng là một order item.
+## 3. Một dòng dữ liệu đại diện cho cái gì?
 
-## 2. Sample record review
+Một dòng là **một dòng sản phẩm trong đơn hàng**. Khóa của dòng là `order_item_id`. Một `order_id` có thể có nhiều dòng; mỗi dòng có thể chứa nhiều đơn vị sản phẩm.
 
-Dữ liệu mẫu cho thấy một `order_id` có thể xuất hiện ở nhiều dòng với `product_card_id`, số lượng, doanh thu và lợi nhuận khác nhau. Các thuộc tính như khách hàng, ngày đặt hàng và trạng thái đơn cần được kiểm tra tính nhất quán ở các bước tiếp theo.
+Ví dụ minh họa: đơn A có hai dòng, dòng thứ nhất mua 3 áo, dòng thứ hai mua 2 bóng. Khi đó có **1 đơn, 2 dòng sản phẩm, 5 đơn vị bán ra**.
 
-## 3. Order-level and item-level relationship
-
-### 3.1. Repeated order IDs
-
-**Result:** Có các `order_id` xuất hiện nhiều hơn một lần. Đơn có nhiều dòng nhất gồm `5` dòng.
-
-**Interpretation:** Việc `order_id` lặp không được xem là duplicate. Nó phản ánh một đơn hàng có thể chứa nhiều dòng sản phẩm.
-
-### 3.2. Order composition
-
-Các đơn hàng có thể chứa nhiều `order_item_id` và nhiều sản phẩm khác nhau. `order_item_quantity` thể hiện số đơn vị bán trên một dòng sản phẩm; vì vậy quantity = 5 vẫn chỉ là một order item, không phải năm dòng dữ liệu.
-
-**Implication:**  
-- Số đơn hàng phải tính bằng `COUNT(DISTINCT order_id)`.
-- Số dòng sản phẩm có thể tính bằng `COUNT(order_item_id)`.
-- Số lượng bán có thể tính bằng `SUM(order_item_quantity)`.
-
-### 3.3. Distribution of order lines
-
-| Lines per order | Number of orders | Interpretation |
-|---:|---:|---|
-| 1 | 19,850 | Đơn có một dòng sản phẩm |
-| 2 | 11,447 | Đơn có hai dòng sản phẩm |
-| 3+ | 34,455 | Đơn có từ ba dòng sản phẩm trở lên |
-
-Điều này cho thấy phần lớn đơn hàng là đơn nhiều dòng. Vì vậy,
-các KPI cấp đơn không được tính trực tiếp bằng `COUNT(*)` trên
-`stg_dataco`.
-
-### 3.4. Order item key validation
-
-| Check | Result |
+| Số dòng trong một đơn | Số đơn |
 |---|---:|
-| Missing `order_item_id` | 0 |
-| Duplicate `order_item_id` | 0 |
-| Total rows | 180,519 |
-| Distinct `order_item_id` | 180,519 |
+| 1 | 19,850 |
+| 2 | 11,447 |
+| 3 | 11,398 |
+| 4 | 11,704 |
+| 5 | 11,353 |
+| Tổng | 65,752 |
 
-**Conclusion:** `order_item_id` đủ điều kiện làm khóa duy nhất ở cấp dòng dữ liệu
+Không xem `order_id` lặp là lỗi trùng dữ liệu. Có 180,519 mã dòng sản phẩm duy nhất và không thiếu mã này.
 
-### 3.5. Customer-to-order relationship
+| Cần đo | Phép tính trên bảng dòng sản phẩm |
+|---|---|
+| Số đơn | `COUNT(DISTINCT order_id)` |
+| Số dòng sản phẩm | `COUNT(*)` |
+| Số đơn vị bán ra | `SUM(order_item_quantity)` |
+| Số khách | `COUNT(DISTINCT customer_id)` |
 
-Có khách hàng xuất hiện trong nhiều `order_id` khác nhau.
+## 4. Quan hệ và tính nhất quán
 
-**Conclusion:** Quan hệ dữ liệu là một khách hàng có thể tạo nhiều đơn hàng.
+Một khách có thể có nhiều đơn; một đơn có nhiều dòng sản phẩm. Kiểm chứng dữ liệu hiện có không phát hiện đơn nào có nhiều giá trị khác nhau về khách, ngày đặt, trạng thái, phân khúc, thị trường, khu vực, quốc gia, phương thức vận chuyển, trạng thái giao hàng, cờ trễ hay số ngày thực tế/dự kiến.
 
-**Future analysis enabled:**
+Sau khi kiểm tra này đạt, có thể lấy một giá trị đại diện cho các thuộc tính cấp đơn bằng `MIN()` khi tổng hợp. `MIN()` không tự giải quyết mâu thuẫn nếu dữ liệu tương lai phát sinh lỗi.
 
-Dữ liệu cho phép phân tích:
+## 5. Hai phạm vi báo cáo
 
-- purchase frequency — tần suất mua trong khoảng dữ liệu;
-- one-time và repeat customers;
-- observed revenue per customer — doanh thu quan sát được trên mỗi khách hàng;
-- customer revenue concentration;
-- Recency, Frequency and Monetary segmentation, viết tắt là RFM,
-  trong phạm vi thời gian của dataset.
+| Phạm vi | Định nghĩa | Số đơn | Mục đích |
+|---|---|---:|---|
+| A | Giữ tất cả trạng thái | 65,752 | Hiểu nguồn, đối soát, phân tích trạng thái và độ nhạy |
+| B | Loại `CANCELED`, `SUSPECTED_FRAUD` | 62,897 | Báo cáo kinh doanh và giao hàng chính |
 
-Dữ liệu không đủ để tính Customer Lifetime Value thực sự vì không phản
-ánh toàn bộ vòng đời của khách hàng trước và sau khoảng dữ liệu.
+Có 2,855 đơn bị loại, tương đương 4.34% số đơn A. Tất cả thuộc trạng thái giao hàng `Shipping canceled` và có cờ trễ bằng 0. Đưa chúng vào mẫu số giao hàng sẽ kéo tỷ lệ trễ xuống dù số đơn trễ không thay đổi.
 
-### 3.6. Consistency of order-level attributes
+B vẫn chứa `PENDING`, `PENDING_PAYMENT`, `PROCESSING`, `ON_HOLD` và `PAYMENT_REVIEW`. Vì vậy, gọi B là **phạm vi đã loại đơn hủy/nghi gian lận**, không gọi là “đơn đã hoàn tất”. Giá trị tài chính là số ghi trong nguồn, chưa được xác nhận là doanh thu kế toán đã ghi nhận.
 
-### 3.6. Consistency of order-level attributes
+## 6. Hai cấp phân tích
 
-Không phát hiện `order_id` nào có nhiều giá trị khác nhau ở các
-thuộc tính:
+| Lớp | Một dòng đại diện cho | Dùng để trả lời |
+|---|---|---|
+| `vw_order_item_analysis_non_canceled` | Một dòng sản phẩm | Sản phẩm, danh mục, số lượng, giảm giá, lợi nhuận dòng |
+| `vw_order_analysis_non_canceled` | Một đơn | Số đơn, AOV, khách, địa lý, giao hàng |
 
-- `customer_id`;
-- `order_date`;
-- `order_status`;
-- `customer_segment`;
-- `market`;
-- `order_region`;
-- `shipping_mode`;
-- `delivery_status`;
-- `late_delivery_risk`;
-- `order_country`.
+Hai view không có hậu tố `_non_canceled` là phạm vi A. Phân tích khách mua một lần/mua lặp lại phải tổng hợp lại từ các đơn thuộc đúng phạm vi; việc loại một đơn có thể làm khách đổi nhóm.
 
-**Conclusion:** Các trường trên được xác nhận là thuộc tính cấp đơn
-và có thể lấy một giá trị đại diện khi xây dựng bảng hoặc view
-order-level.
-## 4. Reporting scope update
+## 7. Giới hạn cần hiểu từ đầu
 
-### 4.1. Why the reporting scope was reviewed
+- Trường có tên “per order” hoặc “per customer” không bảo đảm dữ liệu ở cấp đó. Phải kiểm chứng thực tế.
+- Ngày cuối là 31/01/2018. Có dữ liệu cả 31 ngày của tháng này nhưng chưa đủ bằng chứng xác nhận mọi giao dịch của doanh nghiệp đều được trích xuất.
+- Mô tả nguồn gọi `shipping_date` là thời điểm vận chuyển. Chưa có sự kiện nhận hàng độc lập để kiểm chứng trải nghiệm giao hàng.
+- Địa chỉ/tọa độ khách không nên tự coi là điểm đích giao hàng. Phân tích địa lý chính dùng `market`, `order_region`, `order_country`.
 
-Trong lần kiểm tra delivery analytics, dữ liệu cho thấy các đơn có:
-
-- `order_status = CANCELED`; hoặc
-- `order_status = SUSPECTED_FRAUD`
-
-đều có:
-
-- `delivery_status = Shipping canceled`;
-- `late_delivery_risk = 0`.
-
-Nhóm này gồm 2,855 đơn hàng.
-
-Điều này cho thấy Shipping canceled không được dataset đánh giá theo
-cùng quy tắc giao trễ với các đơn không bị hủy.
-
-### 4.2. Scope A — All recorded orders
-
-Scope A bao gồm toàn bộ 65,752 đơn được ghi nhận trong dataset,
-không phân biệt `order_status`.
-
-Scope A được sử dụng cho:
-
-- mô tả và profiling toàn bộ dữ liệu nguồn;
-- reconciliation với dữ liệu nguồn;
-- phân tích order status;
-- phân tích canceled và suspected-fraud orders;
-- sensitivity check giữa các reporting scope.
-
-### 4.3. Scope B — Non-canceled orders
-
-Scope B loại các đơn có:
-
-- `order_status = CANCELED`;
-- `order_status = SUSPECTED_FRAUD`.
-
-Scope B còn lại 62,897 đơn và được sử dụng làm scope chính cho:
-
-- sales và profit performance;
-- monthly trend;
-- category và product analysis;
-- customer analysis;
-- market và region analysis;
-- delivery performance.
-
-### 4.4. Important interpretation limitation
-
-Scope B được gọi là `non-canceled orders`, không được gọi là
-`completed orders`, `successful orders` hoặc `recognized revenue`.
-
-Lý do là Scope B vẫn bao gồm các trạng thái như:
-
-- `PENDING`;
-- `PENDING_PAYMENT`;
-- `PROCESSING`;
-- `ON_HOLD`;
-- `PAYMENT_REVIEW`.
-
-Dataset cũng không cung cấp quy tắc kế toán để xác nhận recorded
-net sales và recorded profit có phải doanh thu và lợi nhuận đã được
-ghi nhận chính thức hay không.
-
-### 4.5. Scope impact
-
-So với Scope A, việc loại `CANCELED` và `SUSPECTED_FRAUD` làm:
-
-- số đơn giảm `2,855`, tương ứng `4.34%`;
-- recorded net sales giảm `1,409,737.29`, tương ứng `4.26%`;
-- recorded profit giảm `160,482.34`, tương ứng `4.05%`;
-- Profit Margin thay đổi nhẹ từ `12.00%` lên `12.03%`.
-
-Do đó, các kết quả all-status trước đây không hoàn toàn sai, nhưng
-chúng đại diện cho toàn bộ giao dịch được ghi nhận thay vì hiệu quả
-của các đơn không bị hủy.
-
-
-## 5. Final grain conclusion
-
-The grain of `stg_dataco` is **order item**.
-
-Each row represents one product line recorded within an order. `order_item_id` is the unique key at the row level. One `order_id` can contain multiple order items, and one `customer_id` can place multiple orders.
-
-### Analytical implications
-
-- Total source orders:
-  `COUNT(DISTINCT order_id)` trên toàn bộ dữ liệu.
-
-- Total non-canceled orders:
-  `COUNT(DISTINCT order_id)` sau khi loại `CANCELED` và
-  `SUSPECTED_FRAUD`.
-
-- Total customers:
-  `COUNT(DISTINCT customer_id)` trong đúng reporting scope.
-
-- Total order items:
-  `COUNT(order_item_id)`.
-
-- Product quantity sold:
-  `SUM(order_item_quantity)` trong đúng reporting scope.
-
-- Order-level KPI, chẳng hạn Average Order Value và Late Delivery Rate,
-  phải được tính từ bảng order-level để tránh nhân đôi đơn hàng.
-
-- Mọi bảng được dùng để so sánh hoặc reconciliation phải áp dụng cùng
-  một reporting scope.
-
-- Customer summary phải được tạo lại theo từng scope vì việc loại đơn
-  bị hủy có thể làm một repeat customer trở thành one-time customer.
-
-**SQL reference:** `sql/01_profiling_and_grain.sql`
+Tham khảo: [SQL kiểm tra cấp dữ liệu](../sql/01_profiling_and_grain.sql), [từ điển trường](data_dictionary.md), [cây câu hỏi](05_question_tree.md).

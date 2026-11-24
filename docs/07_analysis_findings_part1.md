@@ -1,250 +1,105 @@
-# SQL Business Analysis — Part 1
+# Kết quả phân tích doanh thu và sản phẩm
 
-## 0. Reporting scope and data period
+## 1. Phạm vi và bằng chứng
 
-### 0.1. Data period
+Tất cả kết quả dưới đây dùng **B**, giai đoạn 01/01/2015–31/01/2018. Tiền được làm tròn từng dòng về hai chữ số trước khi cộng. SQL và phép kiểm chứng Python đã được chạy trong lần rà soát này; không còn dùng các số A làm số B.
 
-Dataset bao phủ khoảng thời gian từ `2015-01-01` đến `2018-01-31`,
-tương ứng 37 tháng có phát sinh đơn hàng.
+Nguồn: [SQL 06](../sql/06_business_analysis_sales_product.sql), [SQL chẩn đoán 08](../sql/08_deeper_diagnostics.sql), [biên bản kiểm chứng](11_project_review_validation.md).
 
-### 0.2. Reporting scopes
+## 2. Mốc kinh doanh toàn kỳ
 
-Project phân biệt hai reporting scopes:
+| Chỉ số | Kết quả |
+|---|---:|
+| Đơn | 62,897 |
+| Khách | 20,261 |
+| Dòng sản phẩm | 172,765 |
+| Số lượng bán | 367,591 |
+| Doanh thu trước giảm giá | 35,214,428.98 |
+| Tiền giảm giá | 3,569,808.32 |
+| Doanh thu thuần | 31,644,664.75 |
+| Lợi nhuận | 3,806,420.63 |
+| Biên lợi nhuận | 12.03% |
+| AOV | 503.12 |
 
-| Scope | Definition | Orders | Main use |
-|---|---|---:|---|
-| Scope A — All recorded orders | Bao gồm tất cả `order_status` | 65,752 | Source reconciliation, status, cancellation và sensitivity |
-| Scope B — Non-canceled orders | Loại `CANCELED` và `SUSPECTED_FRAUD` | 62,897 | Primary business-performance analysis |
+Doanh thu và lợi nhuận dương cho biết quy mô tổng thể. Chúng chưa trả lời sản phẩm nào có vấn đề hoặc dịch vụ giao hàng có đáp ứng thời gian dự kiến hay không.
 
-Scope B là non-canceled scope, không phải completed-order scope vì vẫn chứa
-các trạng thái chưa hoàn tất khác.
+## 3. Doanh thu tháng 03/2015 tăng chủ yếu cùng số đơn, nhưng cần đọc theo số ngày
 
-### 0.3. Analysis grain and source views
-
-- Baseline, monthly và order-level analysis sử dụng
-  `vw_order_analysis_non_canceled`.
-- Category và product analysis sử dụng
-  `vw_order_item_analysis_non_canceled`.
-- Số orders trong item view được tính bằng
-  `COUNT(DISTINCT order_id)`.
-- Financial totals được cộng trước; các ratio được tính từ tổng tử số và tổng
-  mẫu số.
-- Hai view Scope A cũ được giữ để reconciliation và sensitivity.
-
-### 0.4. Currency
-
-Gross Sales, Discount, Net Sales và Profit được trình bày theo đơn vị tiền tệ
-gốc của dataset. Metadata hiện chưa xác nhận mã tiền tệ cụ thể.
-
-### 0.5. Revalidation status
-
-Tài liệu này đã được chuyển sang cấu trúc Scope B. Các số liệu chỉ được ghi là
-Scope B khi đã có query hoặc phép đối soát chứng minh. Monthly, category và
-product results phải được chạy lại trước khi đánh dấu findings tương ứng là
-final.
-
-## 1. Business overview
-
-### 1.1. Scope comparison
-
-| KPI | Scope A | Scope B | Difference |
+| Chỉ số | 02/2015 | 03/2015 | Thay đổi |
 |---|---:|---:|---:|
-| Orders | 65,752 | 62,897 | -2,855 |
-| Net Sales | 33,054,402.04 | 31,644,664.75 | -1,409,737.29 |
-| Total Profit | 3,966,902.97 | 3,806,420.63 | -160,482.34 |
-| Profit Margin | 12.00% | 12.03% | +0.03 percentage point |
-| Average Order Value | 502.71 | 503.12 | +0.41 |
+| Doanh thu thuần | 792,251.44 | 905,104.93 | +14.24% |
+| Số đơn | 1,505 | 1,702 | +197 |
+| Số lượng bán | 9,912 | 11,526 | +1,614 |
+| AOV | 526.41 | 531.79 | +1.02% |
+| Lợi nhuận | 93,009.96 | 107,401.92 | Tăng |
+| Biên lợi nhuận | 11.74% | 11.87% | Tăng nhẹ |
+| Số ngày có dữ liệu | 28 | 31 | +3 ngày |
 
-Canceled/fraud orders chiếm:
+Đẳng thức doanh thu = số đơn × AOV cho phép phân rã mức tăng 112,853.49:
 
-- 4.34% recorded orders;
-- 4.26% recorded Net Sales;
-- 4.05% recorded Profit.
+- Phần gắn với thay đổi số đơn, giữ AOV kỳ trước: **103,703.34**, tương đương 91.89% mức tăng.
+- Phần gắn với thay đổi AOV, dùng số đơn kỳ hiện tại: **9,150.15**.
 
-Loại nhóm này làm Net Sales và Profit giảm khoảng 4%, trong khi Profit Margin
-tổng thể chỉ tăng nhẹ từ 12.00% lên 12.03%.
+Đây là phân rã số học theo kỳ gốc. Không phải kết luận số đơn hay một chiến dịch đã “gây ra” tăng trưởng.
 
-### 1.2. Scope B baseline
+**Điểm cần kiểm tra trước khi kể câu chuyện tăng trưởng:** tháng 03 dài hơn tháng 02. Sau chia theo số ngày có dữ liệu, doanh thu/ngày chỉ tăng **3.19%**, số đơn/ngày tăng **2.15%**. Vì vậy, không nên dùng riêng mức tăng 14.24% để khẳng định nhu cầu tăng mạnh. Chưa có lịch ngày làm việc, khuyến mãi và bằng chứng mùa vụ.
 
-Primary baseline hiện được xác nhận gồm:
+## 4. Cuối 2017 có thay đổi cấu trúc giỏ hàng cần điều tra
 
-- Core Orders: 62,897;
-- Core Net Sales: 31,644,664.75;
-- Core Total Profit: 3,806,420.63;
-- Profit Margin: 12.03%;
-- Average Order Value: 503.12.
+| Tháng | Đơn | Dòng sản phẩm | Số lượng bán | Doanh thu thuần | AOV |
+|---|---:|---:|---:|---:|---:|
+| 09/2017 | 1,640 | 4,931 | 9,934 | 976,907.91 | 595.68 |
+| 10/2017 | 2,019 | 2,169 | 2,404 | 926,038.01 | 458.66 |
+| 11/2017 | 1,956 | 1,956 | 1,956 | 538,206.29 | 275.16 |
+| 12/2017 | 2,031 | 2,031 | 2,031 | 432,004.27 | 212.71 |
+| 01/2018 | 2,037 | 2,037 | 2,037 | 284,672.01 | 139.75 |
 
-Gross Sales, Total Discount, Units Sold, Total Customers và Discount Rate của
-Scope B phải được cập nhật sau khi chạy lại Day 4 queries. Không sử dụng các số
-Scope A cũ cho những KPI này.
+09/2017 có doanh thu cao nhất; 01/2018 thấp nhất trong B. Tuy nhiên, số đơn cuối kỳ không giảm tương ứng. Từ 11/2017, mỗi đơn trong nguồn chỉ có một dòng và một đơn vị sản phẩm. AOV giảm rõ rệt.
 
-## 2. Monthly performance revalidation
+**Ý nghĩa:** cần kiểm tra sự thay đổi danh mục, giá trị sản phẩm và phạm vi trích xuất trước khi quy doanh thu giảm cho việc mất khách. Dữ liệu quan sát cho thấy thay đổi cơ cấu đơn; chưa xác định đó là thay đổi kinh doanh thật hay đặc điểm bộ dữ liệu.
 
-### 2.1. Previous Scope A reference
+01/2018 có giao dịch từ ngày 1 đến 31 và đủ 31 ngày quan sát. Điều này sửa nhận định quá đơn giản rằng “tháng cuối chắc chắn chưa đủ tháng”, nhưng chưa xác nhận dữ liệu đầy đủ về mặt nghiệp vụ.
 
-| Check | Previous Scope A result | Scope B status |
-|---|---|---|
-| Highest Net Sales month | 09-2017 — 1,027,111.72 | 09-2017 — 976,907.91 |
-| Lowest Net Sales month | 01-2018 — 297,952.05 | 01-2018 — 289,456.78 |
-| March 2015 MoM Net Sales | +13.33% | 14.24% |
-| March 2015 order increase | +196 orders |  197 orders |
-| March 2015 Units Sold increase | +1,624 units | +1,614 units |
+## 5. Quy mô danh mục và biên lợi nhuận là hai góc nhìn khác nhau
 
-Các giá trị Scope A trên chỉ được giữ làm reference. Không mô tả chúng là
-Scope B cho đến khi chạy query từ `vw_order_analysis_non_canceled`.
+| Danh mục | Doanh thu thuần | Lợi nhuận | Biên | Số đơn chứa danh mục |
+|---|---:|---:|---:|---:|
+| Fishing | 5,964,765.28 | 731,576.18 | 12.26% | 14,527 |
+| Golf Bags & Carts | 9,403.79 | 1,810.07 | 19.25% | 61 |
 
-### 2.2. Required Scope B checks
+Fishing tạo 18.85% tổng doanh thu và dẫn đầu về quy mô. Golf Bags & Carts có biên cao nhất nhưng doanh thu chỉ khoảng 0.03% tổng số, trên 61 đơn.
 
-Phải xác nhận:
+**Ý nghĩa:** không lấy danh mục có tỷ lệ cao nhất làm ưu tiên mở rộng ngay. Cần kết hợp doanh thu, lợi nhuận tuyệt đối, số đơn và khả năng tăng quy mô. Tồn kho, nhu cầu và năng lực cung ứng chưa có trong project.
 
-1. Tháng Net Sales cao nhất và thấp nhất có đổi không.
-2. Tháng tăng và giảm mạnh nhất có đổi không.
-3. Hướng biến động của tháng 03-2015 có giữ nguyên không.
-4. Thay đổi Net Sales đến từ Core Orders, Average Order Value hay Units Sold.
-5. Profit Margin theo tháng có thay đổi đủ lớn để sửa interpretation không.
+## 6. Mười sản phẩm tạo gần 90% doanh thu
 
-### 2.3. Finding decision rule
+Trong 118 sản phẩm, 10 sản phẩm dẫn đầu tạo **89.99% doanh thu thuần**; 108 sản phẩm còn lại tạo 10.01%. Tập 10 sản phẩm dẫn đầu theo doanh thu trùng với tập dẫn đầu theo lợi nhuận tuyệt đối, không có nghĩa thứ hạng hai bảng giống nhau.
 
-Nếu ranking và hướng biến động không đổi, ghi:
+Sản phẩm đứng đầu doanh thu là `Field & Stream Sportsman 16 Gun Fire Safe`.
 
-> Monthly results were revalidated under the non-canceled scope. Major
-> directional findings remained stable.
+**Ý nghĩa:** một thay đổi nhỏ ở nhóm đóng góp lớn có thể đáng quan tâm hơn một tỷ lệ bất thường ở sản phẩm rất nhỏ. Ưu tiên theo dõi doanh thu, lợi nhuận, biên và tồn kho của nhóm này; chưa có dữ liệu tồn kho để kết luận đã xảy ra thiếu hàng.
 
-Nếu có thay đổi, chỉ sửa tháng hoặc finding bị ảnh hưởng; không xóa toàn bộ
-monthly analysis.
+## 7. Hai sản phẩm bị lỗ, quy mô ảnh hưởng nhỏ
 
-## 3. Category performance revalidation
+| Sản phẩm | Đơn/dòng | Doanh thu thuần | Lợi nhuận | Biên |
+|---|---:|---:|---:|---:|
+| SOLE E35 Elliptical | 15 | 26,409.85 | -965.12 | -3.65% |
+| SOLE E25 Elliptical | 10 | 9,414.90 | -169.56 | -1.80% |
 
-### 3.1. Previous Scope A reference
+SOLE E35 chỉ chiếm khoảng **0.0835% doanh thu B**; khoản lỗ tương đương khoảng **0.0254% lợi nhuận toàn kỳ**. Đây là một ngoại lệ để học cách đào sâu, có độ ưu tiên tài chính thấp hơn việc theo dõi 10 sản phẩm chủ lực.
 
-| Check | Previous Scope A result | Scope B status |
-|---|---|---|
-| Top category by Net Sales | Fishing — 6,226,935.12 | Fishing — 5,964,765.28 |
-| Fishing Net Sales share | 18.84% | 18.85% |
-| Highest-margin category | Golf Bags & Carts — 19.25% | Golf Bags & Carts — 19.25% |
-| Top 10 category share | 90.23% | 90.24% |
+| SOLE E35 theo tháng | Đơn | Doanh thu | Lợi nhuận | Tỷ lệ giảm giá |
+|---|---:|---:|---:|---:|
+| 09/2017 | 6 | 9,779.94 | -724.47 | 18.50% |
+| 10/2017 | 9 | 16,629.91 | -240.65 | 7.61% |
 
-### 3.2. Required Scope B checks
+Tháng giảm giá nhiều hơn cũng lỗ nhiều hơn, nhưng chỉ có 15 đơn thuộc hai tháng. Chi phí, hoàn trả và điều kiện bán chưa đủ để kết luận giảm giá gây lỗ hoặc nên ngừng bán sản phẩm.
 
-Phải xác nhận:
+## 8. Hành động phân tích tiếp theo
 
-1. Top category có đổi không.
-2. Net Sales share của Fishing có đổi đáng kể không.
-3. Highest-margin category có đổi không.
-4. Top 10 category contribution có đổi không.
-5. Median Net Sales và median Profit Margin có thay đổi không.
-6. Category nào đổi nhóm High/Low sau khi tính lại median.
+1. Kiểm tra cơ cấu sản phẩm và phạm vi nguồn từ 10/2017.
+2. Theo dõi định kỳ 10 sản phẩm chủ lực bằng cả quy mô và biên.
+3. Kiểm tra 25 đơn thuộc hai sản phẩm lỗ, bổ sung chi phí và hoàn trả.
+4. Với phân tích tháng, đọc cả tổng kỳ và bình quân/ngày trước khi kể câu chuyện tăng trưởng.
 
-Không được giữ nguyên four-group classification bằng median Scope A vì chính
-benchmark median cũng thay đổi khi scope thay đổi.
-
-## 4. Product exceptions and concentration revalidation
-
-### 4.1. Previous Scope A reference
-
-| Check | Previous Scope A result | Scope B status |
-|---|---|---|
-| Top product by Net Sales | Field & Stream Sportsman 16 Gun Fire Safe | Field & Stream Sportsman 16 Gun Fire Safe |
-| Top 10 Sales/Profit overlap | 10/10 products | 10/10 products |
-| High-sales negative-profit exception | SOLE E35 Elliptical | SOLE E35 Elliptical |
-| Top 10 product Net Sales share | 89.98% | 89.99% |
-| Total distinct products | 118 | 118 |
-
-### 4.2. Required Scope B checks
-
-Phải xác nhận:
-
-1. Top 10 products có đổi thành viên hoặc thứ hạng không.
-2. Sales/Profit overlap có còn là 10/10 không.
-3. `SOLE E35 Elliptical` có còn trên median Net Sales và Profit âm không.
-4. Hai tháng Profit âm của sản phẩm này có còn giữ nguyên không.
-5. Top 1, Top 3, Top 5 và Top 10 concentration shares có đổi không.
-6. Tổng số products xuất hiện trong Scope B có còn là 118 không.
-
-## 5. Findings status
-
-### Finding 01 — Scope B business baseline
-
-Scope B gồm `62,897` non-canceled orders, tạo ra Core Net Sales
-`31,644,664.75` và Core Total Profit `3,806,420.63`, tương ứng Profit Margin
-`12.03%`.
-
-So với Scope A, loại `2,855` canceled/fraud orders làm Net Sales giảm
-`1,409,737.29` và Profit giảm `160,482.34`. Profit Margin chỉ tăng `0.03` điểm phần
-trăm, cho thấy margin tổng thể tương đối ổn định nhưng không đảm bảo monthly,
-category hoặc product rankings giữ nguyên.
-
-### Finding 02 — Scope B Monthly growth driver
-
-Net Sales tháng `03-2015` tăng `14.24%` so với tháng trước, từ
-`833,012.42` lên `944,050.10`.
-
-Trong khi AOV chỉ tăng nhẹ `0.86%`, số đơn tăng `197` đơn và Units Sold
-tăng `1,614` units. Total Profit và Profit Margin cũng tăng, cho thấy
-tăng trưởng trong tháng này đi cùng với cải thiện về cả quy mô bán hàng
-và hiệu quả lợi nhuận.
-
-### Finding 03 — Category scale versus margin
-
-`Fishing` là category có Net Sales cao nhất, đạt `5,964,765.28`, đóng
-góp `18.8%` tổng Net Sales. Category này cũng tạo ra Total Profit
-`731,576.18`, với Profit Margin `12.26%`.
-
-Tuy nhiên, `Golf Bags & Carts` có Profit Margin cao nhất là `19.25%`.
-Do đó, category dẫn đầu về doanh thu không đồng nghĩa là category hiệu
-quả nhất về tỷ suất lợi nhuận.
-
-
-### Finding 04 — Product revenue concentration
-
-Trong tổng số `118` sản phẩm, Top 10 đóng góp `89.99%` tổng Net Sales;
-108 sản phẩm còn lại chỉ đóng góp `10.01%`.
-
-Điều này cho thấy kết quả doanh thu tổng thể phụ thuộc đáng kể vào hiệu quả của
-một nhóm sản phẩm nhỏ, nên nhóm này cần được ưu tiên theo dõi về Sales,
-Profit Margin và Discount Rate.
-
-### Finding 05 — High-sales negative-profit product
-
-`SOLE E35 Elliptical` đạt Net Sales `26,409.85` nhưng ghi nhận Total
-Profit âm `-965.12`.
-
-Drill-down cho thấy product này có Profit âm trong `2` tháng; tháng
-`09-2017` đồng thời là tháng có Profit thấp nhất và Discount Rate cao
-nhất. Đây là dấu hiệu cần kiểm tra sâu hơn theo order status, market,
-region và các yếu tố liên quan đến discount trước khi kết luận nguyên
-nhân gây lỗ.
-
-## 6. Limitations
-
-1. Scope B loại rõ ràng canceled/fraud orders nhưng vẫn chứa các status như
-   `PENDING`, `PROCESSING`, `ON_HOLD` và `PAYMENT_REVIEW`.
-2. Recorded Net Sales và Profit không tự động đồng nghĩa với recognized revenue
-   hoặc realized profit theo chuẩn kế toán.
-3. Dataset chưa cung cấp target hoặc benchmark chính thức; category groups và
-   product exceptions vẫn là đánh giá tương đối.
-4. Quan hệ giữa Discount Rate và Profit không chứng minh quan hệ nhân quả.
-5. Currency code chưa được xác nhận trong metadata.
-6. Monthly, category và product findings chưa được đánh dấu final cho đến khi
-   Scope B queries được chạy và đối soát.
-
-## 7. Questions carried to Day 5
-
-1. Customer segment nào đóng góp Core Net Sales, Core Total Profit và Profit
-   Margin lớn nhất?
-2. Market và region nào có Core Net Sales cao nhưng Profit Margin thấp?
-3. Revenue có tập trung vào một nhóm nhỏ customers tương tự product không?
-4. `SOLE E35 Elliptical` có Profit âm tập trung ở market hoặc region cụ thể
-   nào dưới Scope B không?
-5. Delivery performance khác nhau thế nào theo market, region và shipping mode
-   sau khi canceled/fraud orders đã được loại?
-
-
-
-
-
-
-
-
-
-
+Kết luận quản trị và người phụ trách đề xuất nằm tại [tài liệu 09](09_final_insights_recommendations.md).
