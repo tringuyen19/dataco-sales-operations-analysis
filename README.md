@@ -4,8 +4,6 @@ Dự án cá nhân sử dụng **PostgreSQL, SQL và Power BI** để trả lờ
 
 Phân tích đi từ kiểm tra dữ liệu, xác định chỉ số, phân rã kết quả đến đề xuất hành động. Bối cảnh quản lý là giả định; project chưa triển khai giải pháp hoặc đo mức cải thiện kinh doanh.
 
-**Nếu bạn muốn hiểu cách phân tích và trình bày project:** đọc [hướng dẫn thực hành và thuyết trình](docs/12_analysis_and_presentation_guide.md). File này có ví dụ giải thích insight, bài tập SQL, kịch bản 8–10 phút và câu hỏi bảo vệ.
-
 ## Bài toán và cách tiếp cận
 
 Doanh thu tổng chưa đủ để đánh giá hoạt động. Một nhóm có thể tạo doanh thu lớn nhưng biên thấp; một phương thức có tỷ lệ giao trễ cao nhưng thực tế vẫn nhanh hơn phương thức khác.
